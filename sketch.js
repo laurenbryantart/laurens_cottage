@@ -2,7 +2,7 @@
 
 let items = {
   "room_background": { "coordinates": [0, 0], "scale": 1, fullscreen: true },
-  "bed": { "coordinates": [47, 30], "scale": 0.45, "onClick": () => {} },
+  "bed": { "coordinates": [45, 30], "scale": 0.45, "onClick": () => {} },
   "pattern": { "coordinates": [680, 29], "scale": 0.5, "onClick": () => {} },
   "calendar": { "coordinates": [1240, 43], "scale": 0.39, "onClick": () => {} },
   "flowers": { "coordinates": [1300, 150], "scale": 0.4, "onClick": () => {} },
@@ -244,4 +244,4 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-// feeefaww
+// I beleive trees should not have to work. 
