@@ -1,26 +1,23 @@
 // -------------------- ITEMS --------------------
 
 let items = {
-  room_background: { coordinates: [0, 0], scale: 1, fullscreen: true },
-
-  bed: { coordinates: [47, 30], scale: 0.45, onClick: () => {} },
-  pattern: { coordinates: [680, 29], scale: 0.5, onClick: () => {} },
-  calendar: { coordinates: [950, 120], scale: 0.35, onClick: () => {} },
-
-  flowers: { coordinates: [600, 400], scale: 0.4, onClick: () => {} },
-  books: { coordinates: [400, 300], scale: 0.45, onClick: () => {} },
-
-  laptop: { coordinates: [555, 60], scale: 0.5, onClick: () => {} },
-  teapot: { coordinates: [850, 420], scale: 0.35, onClick: () => {} },
-
-  notes: { coordinates: [730, 440], scale: 0.4, onClick: () => {} },
-  paper: { coordinates: [700, 520], scale: 0.38, onClick: () => {} },
-
-  drawing: { coordinates: [250, 170], scale: 0.4, onClick: () => {} },
-  laundry: { coordinates: [160, 700], scale: 0.5, onClick: () => {} }
+  "room_background": { "coordinates": [0, 0], "scale": 1, fullscreen: true },
+  "bed": { "coordinates": [47, 30], "scale": 0.45, "onClick": () => {} },
+  "pattern": { "coordinates": [680, 29], "scale": 0.5, "onClick": () => {} },
+  "calendar": { "coordinates": [1240, 43], "scale": 0.39, "onClick": () => {} },
+  "flowers": { "coordinates": [1300, 150], "scale": 0.4, "onClick": () => {} },
+  "books": { "coordinates": [350, 320], "scale": 0.45, "onClick": () => {} },
+  "laptop": { "coordinates": [555, 60], "scale": 0.5, "onClick": () => {} },
+  "teapot": { "coordinates": [1287, 360], "scale": 0.45, "onClick": () => {} },
+  "notes": { "coordinates": [1285, 300], "scale": 0.4, "onClick": () => {} },
+  "paper": { "coordinates": [600, 500], "scale": 0.5, "onClick": () => {} },
+  "drawing": { "coordinates": [677, 160], "scale": 0.4, "onClick": () => {} },
+  "laundry": { "coordinates": [300, 210], "scale": 0.45, "onClick": () => {} },
+  "coffeemaker": { "coordinates": [900, 420], "scale": 0.5 },
 };
 
-//
+
+
 
 
 
@@ -32,7 +29,7 @@ canvas.height = 960;
 
 let mouseX = 0;
 let mouseY = 0;
-let showGrid = true;
+let showGrid = false;
 
 // -------------------- ERROR SYSTEM --------------------
 
