@@ -16,6 +16,7 @@ let items = {
   "coffeemaker": { "coordinates": [900, 420], "scale": 0.5 },
 };
 
+const the_truth = "alex has big poops";
 
 
 
@@ -242,3 +243,5 @@ window.addEventListener("keydown", (e) => {
     showGrid = !showGrid;
   }
 });
+
+// feeefaww
