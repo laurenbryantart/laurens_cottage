@@ -2,7 +2,7 @@
 // NOTE: no onClick inside items anymore
 
 let items = {
-  "room_background": { "coordinates": [0, 0], "scale": 1, fullscreen: true },
+  "room_background": { "coordinates": [0, 0], "scale": 1.7, fullscreen: true },
 
   "bed": { "coordinates": [47, 30], "scale": 0.45 },
   "pattern": { "coordinates": [680, 29], "scale": 0.5 },
@@ -218,6 +218,52 @@ function drawGrid(cellSize = 50) {
   }
 }
 
+// Grid drawn in a popup's own native image pixel space (the same space
+// iconInstances coordinates are defined in), so labels can be read
+// straight off the screen and pasted into iconInstances.
+function drawPopupGrid(popup, cellSize = 100) {
+  const img = popup.img;
+  if (!img || !img.complete || img.naturalWidth === 0) return;
+
+  const [px, py] = popup.coordinates;
+  const scale = popup.scale;
+  const nativeW = img.naturalWidth;
+  const nativeH = img.naturalHeight;
+
+  ctx.strokeStyle = "rgba(255,0,0,0.6)";
+  ctx.lineWidth = 1;
+
+  for (let nx = 0; nx <= nativeW; nx += cellSize) {
+    const x = px + nx * scale;
+    if (x < 0 || x > canvas.width) continue;
+    ctx.beginPath();
+    ctx.moveTo(x, Math.max(0, py));
+    ctx.lineTo(x, Math.min(canvas.height, py + nativeH * scale));
+    ctx.stroke();
+  }
+
+  for (let ny = 0; ny <= nativeH; ny += cellSize) {
+    const y = py + ny * scale;
+    if (y < 0 || y > canvas.height) continue;
+    ctx.beginPath();
+    ctx.moveTo(Math.max(0, px), y);
+    ctx.lineTo(Math.min(canvas.width, px + nativeW * scale), y);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "yellow";
+  ctx.font = "11px monospace";
+
+  for (let nx = 0; nx <= nativeW; nx += cellSize * 2) {
+    for (let ny = 0; ny <= nativeH; ny += cellSize * 2) {
+      const x = px + nx * scale;
+      const y = py + ny * scale;
+      if (x < 0 || x > canvas.width || y < 0 || y > canvas.height) continue;
+      ctx.fillText(`${nx},${ny}`, x + 2, y + 12);
+    }
+  }
+}
+
 // -------------------- ERROR BOX --------------------
 
 function drawErrors() {
@@ -324,7 +370,7 @@ function draw() {
       safeDrawImage(item.img, x, y, item.scale, key);
     }
 
-    if (showGrid) drawGrid(50);
+    if (showGrid && !topPopup()) drawGrid(50);
     drawErrors();
   } catch (err) {
     pushError(`FATAL DRAW LOOP: ${err.message}`);
@@ -349,6 +395,8 @@ function draw() {
 
       safeDrawImage(inst.img, x, y, inst.scale * popup.scale, inst.id);
     }
+
+    if (showGrid) drawPopupGrid(popup, 100);
   }
 
 
