@@ -1,48 +1,48 @@
 // -------------------- CLICK ACTIONS --------------------
-// Each function name must match: {key}_onClick
+// IMPORTANT: attach everything to window explicitly
 
-function bed_onClick() {
+window.bed_onClick = function () {
   console.log("Bed clicked");
-}
+};
 
-function pattern_onClick() {
+window.pattern_onClick = function () {
   console.log("Pattern clicked");
-}
+};
 
-function calendar_onClick() {
+window.calendar_onClick = function () {
   console.log("Calendar clicked");
-}
+};
 
-function flowers_onClick() {
+window.flowers_onClick = function () {
   console.log("Flowers clicked");
-}
+};
 
-function books_onClick() {
+window.books_onClick = function () {
   console.log("Books clicked");
-}
+};
 
-function laptop_onClick() {
+window.laptop_onClick = function () {
   console.log("Laptop clicked");
-}
+};
 
-function teapot_onClick() {
+window.teapot_onClick = function () {
   console.log("Teapot clicked");
-}
+};
 
-function notes_onClick() {
+window.notes_onClick = function () {
   console.log("Notes clicked");
-}
+};
 
-function paper_onClick() {
+window.paper_onClick = function () {
   console.log("Paper clicked");
-}
+};
 
-function drawing_onClick() {
+window.drawing_onClick = function () {
   console.log("Drawing clicked");
-}
+};
 
-function laundry_onClick() {
+window.laundry_onClick = function () {
   console.log("Laundry clicked");
-}
+};
 
-// coffeemaker intentionally NOT defined = not clickable
+// coffeemaker intentionally not defined

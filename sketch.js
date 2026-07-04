@@ -227,10 +227,15 @@ canvas.addEventListener("mousedown", () => {
   const key = getClickableKeyAt(mouseX, mouseY);
   if (!key) return;
 
-  const fn = window[`${key}_onClick`];
-  if (typeof fn === "function") fn();
-});
+  const fnName = `${key}_onClick`;
+  const fn = window[fnName];
 
+  if (typeof fn === "function") {
+    fn();
+  } else {
+    console.warn(`No click handler found: ${fnName}`);
+  }
+});
 window.addEventListener("keydown", (e) => {
   if (e.key === "g") showGrid = !showGrid;
 });
