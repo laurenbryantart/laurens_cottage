@@ -1,85 +1,95 @@
 // -------------------- CLICK ACTIONS --------------------
-// IMPORTANT: attach everything to window explicitly
+// Attach handlers directly onto entries of the `images` dict declared
+// in sketch.js (loaded before this file — see index.html), by key.
 
-window.bed_onClick = function () {
+images.bed.onClick = function () {
   console.log("Bed clicked");
 };
 
-window.pattern_onClick = function () {
+images.pattern.onClick = function () {
   console.log("Pattern clicked");
 };
 
-window.calendar_onClick = function () {
+images.calendar.onClick = function () {
   console.log("Calendar clicked");
 };
 
-window.flowers_onClick = function () {
+images.flowers.onClick = function () {
   console.log("Flowers clicked");
 };
 
-window.books_onClick = function () {
+images.books.onClick = function () {
   console.log("Books clicked");
 };
 
-window.laptop_onClick = function () {
+images.laptop.onClick = function () {
   show("desktop");
 };
+
+// coffeemaker intentionally left without an onClick → not clickable
 
 // -------------------- DESKTOP APP ICONS --------------------
 // Placeholders — replace with real behavior per app.
 
-window.app_affirmations_onClick = function () {
+images.app_affirmations.onClick = function () {
   console.log("app_affirmations clicked");
 };
 
-window.app_bank_onClick = function () {
+images.app_bank.onClick = function () {
   console.log("app_bank clicked");
 };
 
-window.app_borders_onClick = function () {
+images.app_borders.onClick = function () {
   console.log("app_borders clicked");
 };
 
-window.app_camera_onClick = function () {
+images.app_camera.onClick = function () {
   console.log("app_camera clicked");
 };
 
-window.app_file_onClick = function () {
-  console.log("app_file clicked");
+images.app_file_1.onClick = function () {
+  console.log("app_file_1 clicked");
 };
 
-// To reuse the app_file.png icon for a second folder that opens a
-// different popup: add the instance to `iconInstances` in sketch.js
-// (id: "app_file_2", image: "app_file", onPopup: "desktop", ...), add
-// its target to `popups`, then give it its own handler here — any
-// handler can itself call show("someOtherPopupId") to link onward:
+images.app_file_2.onClick = function () {
+  console.log("app_file_2 clicked");
+};
+
+images.app_file_3.onClick = function () {
+  console.log("app_file_3 clicked");
+};
+
+// To point one of the app_file instances at its own popup instead of a
+// console.log, add the popup to the `images` dict in sketch.js and call
+// show() with its key, e.g.:
 //
-// window.app_file_2_onClick = function () {
+// images.folder_photos = { path: "images/computer/folder_photos.png", coordinates: [0, 0], scale: 0.5, parent: null, popup: true, id: "folder_photos", img: /* load it */ };
+// images.app_file_2.onClick = function () {
 //   show("folder_photos");
 // };
 
-window.app_wizard_onClick = function () {
+images.app_wizard.onClick = function () {
   console.log("app_wizard clicked");
 };
 
-window.teapot_onClick = function () {
+// app_wizard22 intentionally left without an onClick → not clickable yet
+
+images.teapot.onClick = function () {
   console.log("Teapot clicked");
 };
 
-window.notes_onClick = function () {
+images.notes.onClick = function () {
   console.log("Notes clicked");
 };
 
-window.paper_onClick = function () {
+images.paper.onClick = function () {
   console.log("Paper clicked");
 };
 
-window.drawing_onClick = function () {
+images.drawing.onClick = function () {
   console.log("Drawing clicked");
 };
 
-window.laundry_onClick = function () {
+images.laundry.onClick = function () {
   console.log("Laundry clicked");
 };
-
-// coffeemaker intentionally not defined
