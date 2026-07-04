@@ -21,8 +21,6 @@
 //   show_grid   true to overlay the placement grid whenever the "g" key
 //               is toggled on — only room_background sets this; it's the
 //               one grid every coordinate above is defined against
-//   dark_background  true to dim everything beneath this node when it's
-//               showing (defaults to false — see DRAW LOOP below)
 //   hide        list of node ids to hide from the screen while this node
 //               is showing (defaults to []) — e.g. hide: ["app_wizard"]
 
@@ -44,7 +42,6 @@ let images = {
         children: [
           {
             id: "desktop", path: "computer/desktop.png", coordinates: [150, 50], scale: 0.42,
-            dark_background: true,
             children: [
               { id: "app_bank", path: "computer/app_bank.png", coordinates: [550, 150], scale: 0.315 },
               { id: "app_borders", path: "computer/app_borders.png", coordinates: [800, 150], scale: 0.315 },
@@ -61,7 +58,7 @@ let images = {
               {
                 id: "app_affirmations", path: "computer/app_affirmations.png", coordinates: [500, 200], scale: 0.315,
                 children: [
-                  { id: "affirmations_popup", path: "computer/affirmations_popup.png", coordinates: [1000, 500], scale: 0.23625, dark_background: true, hide: ["app_wizard"] },
+                  { id: "affirmations_popup", path: "computer/affirmations_popup.png", coordinates: [700, 300], scale: 0.23625 },
                 ]
               },
             ]
@@ -88,7 +85,6 @@ const root = images.room_background;
 function normalize(node) {
   if (node.children === undefined) node.children = [];
   if (node.show_grid === undefined) node.show_grid = false;
-  if (node.dark_background === undefined) node.dark_background = false;
   if (node.hide === undefined) node.hide = [];
   node.path = IMAGES_FOLDER + node.path;
   node.children.forEach(normalize);
@@ -330,24 +326,19 @@ function draw() {
     const hidden = collectHiddenIds();
 
     // Each opened popup is drawn in order (room_background, then each
-    // nested popup opened on top of it), dimming what's beneath it when
-    // it's flagged dark_background.
-    openPath.forEach((node, i) => {
+    // nested popup opened on top of it), immediately followed by its own
+    // children — so z-index increases with nesting depth and every layer's
+    // items stack correctly on top of what came before.
+    openPath.forEach((node) => {
       if (hidden.has(node.id)) return;
-      if (i > 0 && node.dark_background) {
-        ctx.fillStyle = "rgba(0,0,0,0.6)";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
-      safeDrawImage(node.img, node.coordinates[0], node.coordinates[1], node.scale, node.id);
-    });
 
-    // Every visible layer's items (room items, and every opened popup's
-    // icons) draw together on top of the chain above — nothing already
-    // open gets hidden just because another popup was opened.
-    for (const node of visibleChildren()) {
-      if (!node.img) continue;
       safeDrawImage(node.img, node.coordinates[0], node.coordinates[1], node.scale, node.id);
-    }
+
+      node.children.forEach((child) => {
+        if (hidden.has(child.id) || !child.img) return;
+        safeDrawImage(child.img, child.coordinates[0], child.coordinates[1], child.scale, child.id);
+      });
+    });
 
     // The one grid is always the topmost layer, so coordinates can be
     // read straight off the screen no matter what's currently open.
