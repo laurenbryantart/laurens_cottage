@@ -18,7 +18,8 @@
 //               always-visible room item (see POPUP TREE below)
 //   show_grid   true to overlay this node's placement grid whenever the
 //               "g" key is toggled on (defaults to false — see GRID below)
-//   onClick     attached later, from onClick_actions.js
+//   onClick     function called when this node is clicked — presence of
+//               this key is what makes a node clickable at all
 
 const IMAGES_FOLDER = "images/";
 
@@ -31,7 +32,7 @@ let images = {
   calendar: { path: "main_room/calendar.png", coordinates: [1240, 43], scale: 0.39, parent: "room_background" },
   flowers: { path: "main_room/flowers.png", coordinates: [1300, 150], scale: 0.4, parent: "room_background" },
   books: { path: "main_room/books.png", coordinates: [350, 320], scale: 0.45, parent: "room_background" },
-  laptop: { path: "main_room/laptop.png", coordinates: [555, 60], scale: 0.5, parent: "room_background" },
+  laptop: { path: "main_room/laptop.png", coordinates: [555, 60], scale: 0.5, parent: "room_background", onClick: () => show("desktop") },
   teapot: { path: "main_room/teapot.png", coordinates: [1287, 360], scale: 0.45, parent: "room_background" },
   notes: { path: "main_room/notes.png", coordinates: [1285, 300], scale: 0.4, parent: "room_background" },
   paper: { path: "main_room/paper.png", coordinates: [600, 500], scale: 0.5, parent: "room_background" },
@@ -44,7 +45,7 @@ let images = {
   // ---- desktop popup + its icons (parent: "desktop") ----
   desktop: { path: "computer/desktop.png", coordinates: [150, 50], scale: 0.42, parent: null, popup: true, show_grid: true },
 
-  app_affirmations: { path: "computer/app_affirmations.png", coordinates: [800, 350], scale: 0.75, parent: "desktop" },
+  
   app_bank: { path: "computer/app_bank.png", coordinates: [900, 200], scale: 0.75, parent: "desktop" },
   app_borders: { path: "computer/app_borders.png", coordinates: [1600, 200], scale: 0.75, parent: "desktop" },
   app_camera: { path: "computer/app_camera.png", coordinates: [200, 900], scale: 0.75, parent: "desktop" },
@@ -57,11 +58,10 @@ let images = {
 
   app_wizard: { path: "computer/app_wizard.png", coordinates: [1600, 900], scale: 0.75, parent: "desktop" },
 
-  // no onClick attached yet → not clickable
-  app_wizard22: { id: "alert_compromised_wizard", path: "computer/alert_compromised_wizard.png", coordinates: [1000, 900], scale: 0.75, parent: "desktop" },
 
 
-  affirmations_popup: { path: "computer/app_wizard.png", coordinates: [1600, 900], scale: 0.75, parent: "desktop" },
+  app_affirmations: { path: "computer/app_affirmations.png", coordinates: [800, 350], scale: 0.75, parent: "desktop", onClick: () => show("affirmations_popup") },
+  affirmations_popup: { path: "computer/affirmations_popup.png", coordinates: [1600, 900], scale: 0.75, parent: "app_affirmations" },
 
   // images/computer/affirmations_popup.png
 };
