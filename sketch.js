@@ -15,11 +15,13 @@
 //               clipped relative to, or null for root-level nodes
 //   popup       true if this node is a full popup screen rather than an
 //               always-visible room item (see POPUP TREE below)
+//   show_grid   true to overlay this node's placement grid whenever the
+//               "g" key is toggled on (defaults to false — see GRID below)
 //   onClick     attached later, from onClick_actions.js
 
 let images = {
   // ---- room (always visible, parent: null) ----
-  room_background: { path: "images/main_room/room_background.png", coordinates: [0, 0], scale: 0.92, parent: null },
+  room_background: { path: "images/main_room/room_background.png", coordinates: [0, 0], scale: 0.92, parent: null, show_grid: true },
 
   bed: { path: "images/main_room/bed.png", coordinates: [47, 30], scale: 0.45, parent: "room_background" },
   pattern: { path: "images/main_room/pattern.png", coordinates: [680, 29], scale: 0.5, parent: "room_background" },
@@ -37,7 +39,7 @@ let images = {
   coffeemaker: { path: "images/main_room/coffeemaker.png", coordinates: [900, 420], scale: 0.5, parent: "room_background" },
 
   // ---- desktop popup + its icons (parent: "desktop") ----
-  desktop: { path: "images/computer/desktop.png", coordinates: [150, 50], scale: 0.42, parent: null, popup: true },
+  desktop: { path: "images/computer/desktop.png", coordinates: [150, 50], scale: 0.42, parent: null, popup: true, show_grid: true },
 
   app_affirmations: { path: "images/computer/app_affirmations.png", coordinates: [800, 350], scale: 0.75, parent: "desktop" },
   app_bank: { path: "images/computer/app_bank.png", coordinates: [900, 200], scale: 0.75, parent: "desktop" },
@@ -53,12 +55,18 @@ let images = {
   app_wizard: { path: "images/computer/app_wizard.png", coordinates: [1600, 900], scale: 0.75, parent: "desktop" },
 
   // no onClick attached yet → not clickable
-  app_wizard22: { id: "alert_compromised_wizard", path: "images/computer/alert_compromised_wizard.png", coordinates: [1000, 900], scale: 0.75, parent: "desktop" }
+  app_wizard22: { id: "alert_compromised_wizard", path: "images/computer/alert_compromised_wizard.png", coordinates: [1000, 900], scale: 0.75, parent: "desktop" },
+
+
+  affirmations_popup: { path: "images/computer/app_wizard.png", coordinates: [1600, 900], scale: 0.75, parent: "desktop" },
+
+  // images/computer/affirmations_popup.png
 };
 
 // id defaults to the dict key unless explicitly overridden above
 for (const key in images) {
   if (images[key].id === undefined) images[key].id = key;
+  if (images[key].show_grid === undefined) images[key].show_grid = false;
 }
 
 // -------------------- POPUP TREE --------------------
@@ -179,76 +187,55 @@ function safeDrawImage(img, x, y, scale, label) {
 }
 
 // -------------------- GRID --------------------
+// One standard grid format, drawn in a node's own native image pixel
+// space (the same space child coordinates are defined in), so labels
+// can be read straight off the screen and pasted into a child node's
+// `coordinates`. Applies uniformly to any node — root or nested — that
+// has `show_grid: true`; toggled globally by the "g" key.
 
-function drawGrid(cellSize = 50) {
-  ctx.strokeStyle = "rgba(200,200,200,1)";
-  ctx.lineWidth = 1;
-
-  for (let x = 0; x < canvas.width; x += cellSize) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
-    ctx.stroke();
-  }
-
-  for (let y = 0; y < canvas.height; y += cellSize) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(canvas.width, y);
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = "black";
-  ctx.font = "12px sans-serif";
-
-  for (let x = 0; x < canvas.width; x += 100) {
-    for (let y = 0; y < canvas.height; y += 100) {
-      ctx.fillText(`${x},${y}`, x + 2, y + 12);
-    }
-  }
-}
-
-// Grid drawn in a node's own native image pixel space (the same space
-// child coordinates are defined in), so labels can be read straight off
-// the screen and pasted into a child node's `coordinates`.
-function drawPopupGrid(key, cellSize = 100) {
+function drawNodeGrid(key, cellSize = 100) {
   const node = images[key];
   const img = node.img;
   if (!img || !img.complete || img.naturalWidth === 0) return;
 
   const abs = getAbsolute(key);
-  const nativeW = img.naturalWidth;
-  const nativeH = img.naturalHeight;
+  const screenW = img.naturalWidth * abs.scale;
+  const screenH = img.naturalHeight * abs.scale;
 
-  ctx.strokeStyle = "rgba(255,0,0,0.6)";
+  ctx.strokeStyle = "black";
   ctx.lineWidth = 1;
 
-  for (let nx = 0; nx <= nativeW; nx += cellSize) {
-    const x = abs.x + nx * abs.scale;
+  for (let sx = 0; sx <= screenW; sx += cellSize) {
+    const x = abs.x + sx;
     if (x < 0 || x > canvas.width) continue;
     ctx.beginPath();
     ctx.moveTo(x, Math.max(0, abs.y));
-    ctx.lineTo(x, Math.min(canvas.height, abs.y + nativeH * abs.scale));
+    ctx.lineTo(x, Math.min(canvas.height, abs.y + screenH));
     ctx.stroke();
   }
 
-  for (let ny = 0; ny <= nativeH; ny += cellSize) {
-    const y = abs.y + ny * abs.scale;
+  for (let sy = 0; sy <= screenH; sy += cellSize) {
+    const y = abs.y + sy;
     if (y < 0 || y > canvas.height) continue;
     ctx.beginPath();
     ctx.moveTo(Math.max(0, abs.x), y);
-    ctx.lineTo(Math.min(canvas.width, abs.x + nativeW * abs.scale), y);
+    ctx.lineTo(Math.min(canvas.width, abs.x + screenW), y);
     ctx.stroke();
   }
 
-  ctx.fillStyle = "yellow";
-  ctx.font = "11px monospace";
+  ctx.fillStyle = "black";
+  ctx.font = "14px monospace";
 
-  for (let nx = 0; nx <= nativeW; nx += cellSize * 2) {
-    for (let ny = 0; ny <= nativeH; ny += cellSize * 2) {
-      const x = abs.x + nx * abs.scale;
-      const y = abs.y + ny * abs.scale;
+  for (let sx = 0; sx <= screenW; sx += cellSize * 2) {
+    for (let sy = 0; sy <= screenH; sy += cellSize * 2) {
+      const x = abs.x + sx;
+      const y = abs.y + sy;
       if (x < 0 || x > canvas.width || y < 0 || y > canvas.height) continue;
+      // Labels stay in native image pixel space so they can be pasted
+      // straight into a child node's `coordinates`, even though the
+      // grid lines themselves are spaced at a fixed screen pixel size.
+      const nx = Math.round(sx / abs.scale);
+      const ny = Math.round(sy / abs.scale);
       ctx.fillText(`${nx},${ny}`, x + 2, y + 12);
     }
   }
@@ -325,6 +312,11 @@ function draw() {
   try {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Each image is immediately followed by its own grid (if enabled) so
+    // grid z-index tracks the image's z-index: a deeper popup level's
+    // grid always paints over everything beneath it, and a node's
+    // children (drawn after it) stack on top of both the node and its
+    // grid.
     popupStack.forEach((key, i) => {
       if (i > 0) {
         ctx.fillStyle = "rgba(0,0,0,0.6)";
@@ -333,6 +325,7 @@ function draw() {
       const node = images[key];
       const abs = getAbsolute(key);
       safeDrawImage(node.img, abs.x, abs.y, abs.scale, node.id);
+      if (showGrid && node.show_grid) drawNodeGrid(key);
     });
 
     const topKey = topPopup();
@@ -344,12 +337,8 @@ function draw() {
 
         const abs = getAbsolute(key);
         safeDrawImage(node.img, abs.x, abs.y, abs.scale, node.id);
+        if (showGrid && node.show_grid) drawNodeGrid(key);
       }
-    }
-
-    if (showGrid) {
-      if (popupStack.length <= 1) drawGrid(50);
-      else drawPopupGrid(topKey, 100);
     }
 
     drawErrors();
