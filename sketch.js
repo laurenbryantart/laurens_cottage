@@ -1,113 +1,114 @@
 // -------------------- IMAGES --------------------
 // Every image on screen — room items, popup screens, and icons drawn on
-// top of popups — lives in ONE dict, `images`, keyed by name.
+// top of popups — lives in ONE tree, `images`, rooted at `room_background`.
 //
 // node shape:
-//   id          which image asset this node uses (defaults to the dict
-//               key below, via the normalization loop after the dict —
-//               only set explicitly when the key can't double as the
-//               filename, e.g. the three app_file folder instances)
+//   id          which image asset this node uses — also the cache key in
+//               loadImages, so nodes that share art (e.g. the three
+//               app_file folder instances) can reuse the same Image
 //   path        image file to draw, relative to the "images/" folder
 //               (defaults to that folder — no need to write the prefix)
-//   coordinates [x, y] relative to `parent` (relative to the canvas
-//               origin if parent is null)
-//   scale       relative to `parent`'s scale (root nodes: absolute)
-//   parent      key (in `images`) of the node this one is positioned/
-//               clipped relative to, or null for root-level nodes
+//   coordinates [x, y] absolute, relative to the ONE grid: the
+//               room_background image's own native-pixel grid. Every
+//               node uses this same coordinate system regardless of how
+//               deeply it's nested — never relative to another image.
+//   scale       absolute scale factor applied to the image's native size
+//   children    list of nodes nested "inside" this one (defaults to []).
+//               Clicking a node reveals its children automatically —
+//               there's no separate "opens" pointer.
 //   popup       true if this node is a full popup screen rather than an
 //               always-visible room item (see POPUP TREE below)
-//   show_grid   true to overlay this node's placement grid whenever the
-//               "g" key is toggled on (defaults to false — see GRID below)
-//   onClick     function called when this node is clicked — presence of
-//               this key is what makes a node clickable at all
+//   show_grid   true to overlay the placement grid whenever the "g" key
+//               is toggled on — only room_background sets this; it's the
+//               one grid every coordinate above is defined against
+//   dark_background  true to dim everything beneath this node when it's
+//               showing (defaults to false — see DRAW LOOP below)
 
 const IMAGES_FOLDER = "images/";
 
 let images = {
-  // ---- room (always visible, parent: null) ----
-  room_background: { path: "main_room/room_background.png", coordinates: [0, 0], scale: 0.92, parent: null, show_grid: true },
+  room_background: {
+    id: "room_background", path: "main_room/room_background.png", coordinates: [0, 0], scale: 0.92, show_grid: true,
+    children: [
+      { id: "bed", path: "main_room/bed.png", coordinates: [43.24, 27.6], scale: 0.414 },
+      { id: "pattern", path: "main_room/pattern.png", coordinates: [625.6, 26.68], scale: 0.46 },
+      { id: "calendar", path: "main_room/calendar.png", coordinates: [1140.8, 39.56], scale: 0.3588 },
+      { id: "flowers", path: "main_room/flowers.png", coordinates: [1196, 138], scale: 0.368 },
+      { id: "books", path: "main_room/books.png", coordinates: [322, 294.4], scale: 0.414 },
 
-  bed: { path: "main_room/bed.png", coordinates: [47, 30], scale: 0.45, parent: "room_background" },
-  pattern: { path: "main_room/pattern.png", coordinates: [680, 29], scale: 0.5, parent: "room_background" },
-  calendar: { path: "main_room/calendar.png", coordinates: [1240, 43], scale: 0.39, parent: "room_background" },
-  flowers: { path: "main_room/flowers.png", coordinates: [1300, 150], scale: 0.4, parent: "room_background" },
-  books: { path: "main_room/books.png", coordinates: [350, 320], scale: 0.45, parent: "room_background" },
-  laptop: { path: "main_room/laptop.png", coordinates: [555, 60], scale: 0.5, parent: "room_background", onClick: () => show("desktop") },
-  teapot: { path: "main_room/teapot.png", coordinates: [1287, 360], scale: 0.45, parent: "room_background" },
-  notes: { path: "main_room/notes.png", coordinates: [1285, 300], scale: 0.4, parent: "room_background" },
-  paper: { path: "main_room/paper.png", coordinates: [600, 500], scale: 0.5, parent: "room_background" },
-  drawing: { path: "main_room/drawing.png", coordinates: [677, 160], scale: 0.4, parent: "room_background" },
-  laundry: { path: "main_room/laundry.png", coordinates: [300, 210], scale: 0.45, parent: "room_background" },
+      {
+        id: "laptop", path: "main_room/laptop.png", coordinates: [510.6, 55.2], scale: 0.46,
+        // ---- desktop popup + its icons, revealed by clicking the laptop ----
+        children: [
+          {
+            id: "desktop", path: "computer/desktop.png", coordinates: [150, 50], scale: 0.42,
+            popup: true, dark_background: true,
+            children: [
+              { id: "app_bank", path: "computer/app_bank.png", coordinates: [528, 134], scale: 0.315 },
+              { id: "app_borders", path: "computer/app_borders.png", coordinates: [822, 134], scale: 0.315 },
+              { id: "app_camera", path: "computer/app_camera.png", coordinates: [234, 428], scale: 0.315 },
 
-  // no onClick attached below → not clickable
-  coffeemaker: { path: "main_room/coffeemaker.png", coordinates: [900, 420], scale: 0.5, parent: "room_background" },
+              // three folder instances share the app_file.png art — same
+              // `id`, so they still share one cached Image
+              { id: "app_file", path: "computer/app_file.png", coordinates: [234, 176], scale: 0.42 },
+              { id: "app_file", path: "computer/app_file.png", coordinates: [234, 302], scale: 0.42 },
+              { id: "app_file", path: "computer/app_file.png", coordinates: [234, 428], scale: 0.42 },
 
-  // ---- desktop popup + its icons (parent: "desktop") ----
-  desktop: { path: "computer/desktop.png", coordinates: [150, 50], scale: 0.42, parent: null, popup: true, show_grid: true },
+              { id: "app_wizard", path: "computer/app_wizard.png", coordinates: [822, 428], scale: 0.315 },
 
-  
-  app_bank: { path: "computer/app_bank.png", coordinates: [900, 200], scale: 0.75, parent: "desktop" },
-  app_borders: { path: "computer/app_borders.png", coordinates: [1600, 200], scale: 0.75, parent: "desktop" },
-  app_camera: { path: "computer/app_camera.png", coordinates: [200, 900], scale: 0.75, parent: "desktop" },
+              {
+                id: "app_affirmations", path: "computer/app_affirmations.png", coordinates: [486, 197], scale: 0.315,
+                children: [
+                  { id: "affirmations_popup", path: "computer/affirmations_popup.png", coordinates: [990, 480.5], scale: 0.23625, popup: true, dark_background: true },
+                ]
+              },
+            ]
+          }
+        ]
+      },
 
-  // three folder instances share the app_file.png art — different keys,
-  // same `id`, so they still share one cached Image
-  app_file_1: { id: "app_file", path: "computer/app_file.png", coordinates: [200, 300], scale: 1, parent: "desktop" },
-  app_file_2: { id: "app_file", path: "computer/app_file.png", coordinates: [200, 600], scale: 1, parent: "desktop" },
-  app_file_3: { id: "app_file", path: "computer/app_file.png", coordinates: [200, 900], scale: 1, parent: "desktop" },
+      { id: "teapot", path: "main_room/teapot.png", coordinates: [1184.04, 331.2], scale: 0.414 },
+      { id: "notes", path: "main_room/notes.png", coordinates: [1182.2, 276], scale: 0.368 },
+      { id: "paper", path: "main_room/paper.png", coordinates: [552, 460], scale: 0.46 },
+      { id: "drawing", path: "main_room/drawing.png", coordinates: [622.84, 147.2], scale: 0.368 },
+      { id: "laundry", path: "main_room/laundry.png", coordinates: [276, 193.2], scale: 0.414 },
 
-  app_wizard: { path: "computer/app_wizard.png", coordinates: [1600, 900], scale: 0.75, parent: "desktop" },
-
-
-
-  app_affirmations: { path: "computer/app_affirmations.png", coordinates: [800, 350], scale: 0.75, parent: "desktop", onClick: () => show("affirmations_popup") },
-  affirmations_popup: { path: "computer/affirmations_popup.png", coordinates: [1600, 900], scale: 0.75, parent: "app_affirmations" },
-
-  // images/computer/affirmations_popup.png
+      // no `children` below → not clickable
+      { id: "coffeemaker", path: "main_room/coffeemaker.png", coordinates: [828, 386.4], scale: 0.46 },
+    ]
+  }
 };
 
-// id defaults to the dict key, path defaults to the "images/" folder,
-// unless explicitly overridden above
-for (const key in images) {
-  if (images[key].id === undefined) images[key].id = key;
-  if (images[key].show_grid === undefined) images[key].show_grid = false;
-  images[key].path = IMAGES_FOLDER + images[key].path;
+const root = images.room_background;
+
+// Fill in defaults (children/show_grid/dark_background) and resolve the
+// image path, walking the whole tree.
+function normalize(node) {
+  if (node.children === undefined) node.children = [];
+  if (node.show_grid === undefined) node.show_grid = false;
+  if (node.dark_background === undefined) node.dark_background = false;
+  node.path = IMAGES_FOLDER + node.path;
+  node.children.forEach(normalize);
 }
+
+normalize(root);
 
 // -------------------- POPUP TREE --------------------
-// The room itself is just the first thing shown — `first_image` is the
-// permanent base of the popup stack (index 0), never popped. Opening a
-// popup (show("desktop")) pushes its key on top; only the top of the
-// stack has its children (icons) drawn/clickable, and clicking outside
-// its bounds pops back one level — same rule at every depth.
+// The room itself is just the first thing shown — `openPath` is the
+// permanent base of the popup chain (index 0: room_background), never
+// popped. Clicking a node with children pushes those children onto the
+// chain (e.g. clicking the laptop reveals the desktop popup); only the
+// last entry's children are drawn/clickable, and clicking outside the
+// current popup's bounds pops back one level — same rule at every depth.
 
-let first_image = "room_background";
-let popupStack = [first_image];
+let openPath = [root];
 
-function show(key) {
-  popupStack.push(key);
+function currentLayer() {
+  return openPath[openPath.length - 1].children;
 }
 
-function hide() {
-  if (popupStack.length > 1) popupStack.pop(); // first_image can't be popped
-}
-
-function topPopup() {
-  return popupStack[popupStack.length - 1] || null;
-}
-
-// Absolute canvas position, resolved by walking up `parent` keys.
-function getAbsolute(key) {
-  const node = images[key];
-  if (!node.parent) {
-    return { x: node.coordinates[0], y: node.coordinates[1], scale: node.scale };
-  }
-  const parentAbs = getAbsolute(node.parent);
-  return {
-    x: parentAbs.x + node.coordinates[0] * parentAbs.scale,
-    y: parentAbs.y + node.coordinates[1] * parentAbs.scale,
-    scale: node.scale * parentAbs.scale
-  };
+function closePopup() {
+  if (openPath.length > 1) openPath.pop(); // room_background can't be popped
 }
 
 // -------------------- CANVAS --------------------
@@ -151,32 +152,27 @@ function safeTry(label, fn) {
 }
 
 // -------------------- IMAGE LOADING --------------------
-// One Image per unique `id`, shared across nodes — app_file_1/2/3 all
-// share id "app_file", so it's only fetched once.
+// One Image per unique `id`, shared across nodes — the three app_file
+// nodes all share id "app_file", so it's only fetched once.
 
-function loadImages(dict) {
-  const cache = {};
+function loadImages(node, cache = {}) {
+  if (!cache[node.id]) {
+    const img = new Image();
 
-  for (const key in dict) {
-    const node = dict[key];
+    img.onload = () => {};
+    img.onerror = () => {
+      pushError(`Missing image: ${node.path}`);
+    };
 
-    if (!cache[node.id]) {
-      const img = new Image();
-
-      img.onload = () => {};
-      img.onerror = () => {
-        pushError(`Missing image: ${node.path}`);
-      };
-
-      img.src = node.path;
-      cache[node.id] = img;
-    }
-
-    node.img = cache[node.id];
+    img.src = node.path;
+    cache[node.id] = img;
   }
+
+  node.img = cache[node.id];
+  node.children.forEach((child) => loadImages(child, cache));
 }
 
-loadImages(images);
+loadImages(root);
 
 // -------------------- SAFE DRAW --------------------
 
@@ -192,44 +188,43 @@ function safeDrawImage(img, x, y, scale, label) {
 }
 
 // -------------------- GRID --------------------
-// One standard grid format, drawn in a node's own native image pixel
-// space (the same space child coordinates are defined in), so labels
-// can be read straight off the screen and pasted into a child node's
-// `coordinates`. Applies uniformly to any node — root or nested — that
-// has `show_grid: true`; toggled globally by the "g" key.
+// The one grid, drawn in room_background's own native image pixel space,
+// so labels can be read straight off the screen and pasted into any
+// node's `coordinates` — every node shares this same coordinate system
+// regardless of nesting depth.
 
-function drawNodeGrid(key, cellSize = 100) {
-  const node = images[key];
+function drawNodeGrid(node, cellSize = 100) {
   const img = node.img;
   if (!img || !img.complete || img.naturalWidth === 0) return;
 
-  const abs = getAbsolute(key);
+  const [x0, y0] = node.coordinates;
+  const scale = node.scale;
   const nativeW = img.naturalWidth;
   const nativeH = img.naturalHeight;
-  const screenW = nativeW * abs.scale;
-  const screenH = nativeH * abs.scale;
+  const screenW = nativeW * scale;
+  const screenH = nativeH * scale;
 
   ctx.strokeStyle = "black";
   ctx.lineWidth = 1;
 
   // Lines are spaced every `cellSize` native image pixels (0, 100, 200, ...)
   // and only then converted to screen space, so grid squares always land on
-  // round 100s regardless of the node's scale.
+  // round 100s regardless of scale.
   for (let nx = 0; nx <= nativeW; nx += cellSize) {
-    const x = abs.x + nx * abs.scale;
+    const x = x0 + nx * scale;
     if (x < 0 || x > canvas.width) continue;
     ctx.beginPath();
-    ctx.moveTo(x, Math.max(0, abs.y));
-    ctx.lineTo(x, Math.min(canvas.height, abs.y + screenH));
+    ctx.moveTo(x, Math.max(0, y0));
+    ctx.lineTo(x, Math.min(canvas.height, y0 + screenH));
     ctx.stroke();
   }
 
   for (let ny = 0; ny <= nativeH; ny += cellSize) {
-    const y = abs.y + ny * abs.scale;
+    const y = y0 + ny * scale;
     if (y < 0 || y > canvas.height) continue;
     ctx.beginPath();
-    ctx.moveTo(Math.max(0, abs.x), y);
-    ctx.lineTo(Math.min(canvas.width, abs.x + screenW), y);
+    ctx.moveTo(Math.max(0, x0), y);
+    ctx.lineTo(Math.min(canvas.width, x0 + screenW), y);
     ctx.stroke();
   }
 
@@ -238,8 +233,8 @@ function drawNodeGrid(key, cellSize = 100) {
 
   for (let nx = 0; nx <= nativeW; nx += cellSize * 2) {
     for (let ny = 0; ny <= nativeH; ny += cellSize * 2) {
-      const x = abs.x + nx * abs.scale;
-      const y = abs.y + ny * abs.scale;
+      const x = x0 + nx * scale;
+      const y = y0 + ny * scale;
       if (x < 0 || x > canvas.width || y < 0 || y > canvas.height) continue;
       ctx.fillText(`(${nx},${ny})`, x + 2, y + 12);
     }
@@ -284,29 +279,22 @@ function drawErrors() {
 }
 
 // -------------------- CLICK DETECTION --------------------
-// Only the top of the popup stack has clickable children — at the base
-// level that's first_image's children (bed, laptop, ...), same rule
-// used again for desktop's children (app_bank, app_file_1, ...).
+// Only the current layer (the last popup's children) is clickable — at
+// the base level that's room_background's children (bed, laptop, ...),
+// same rule used again for desktop's children (app_bank, app_file, ...).
+// A node is only clickable if it has children to reveal.
 
 function getClickableNodeAt(x, y) {
-  const topKey = topPopup();
-  if (!topKey) return null;
-
-  for (const key in images) {
-    const node = images[key];
-    if (node.parent !== topKey) continue;
+  for (const node of currentLayer()) {
     if (!node.img) continue;
-    if (typeof node.onClick !== "function") continue;
+    if (node.children.length === 0) continue;
 
-    const abs = getAbsolute(key);
-    const w = node.img.width * abs.scale;
-    const h = node.img.height * abs.scale;
+    const [nx, ny] = node.coordinates;
+    const w = node.img.width * node.scale;
+    const h = node.img.height * node.scale;
 
-    const hit =
-      x >= abs.x && x <= abs.x + w &&
-      y >= abs.y && y <= abs.y + h;
-
-    if (hit) return key;
+    const hit = x >= nx && x <= nx + w && y >= ny && y <= ny + h;
+    if (hit) return node;
   }
   return null;
 }
@@ -317,34 +305,27 @@ function draw() {
   try {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Each image is immediately followed by its own grid (if enabled) so
-    // grid z-index tracks the image's z-index: a deeper popup level's
-    // grid always paints over everything beneath it, and a node's
-    // children (drawn after it) stack on top of both the node and its
-    // grid.
-    popupStack.forEach((key, i) => {
-      if (i > 0) {
+    // Each opened popup is drawn in order (room_background, then each
+    // nested popup opened on top of it), dimming what's beneath it when
+    // it's flagged dark_background.
+    openPath.forEach((node, i) => {
+      if (i > 0 && node.dark_background) {
         ctx.fillStyle = "rgba(0,0,0,0.6)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
-      const node = images[key];
-      const abs = getAbsolute(key);
-      safeDrawImage(node.img, abs.x, abs.y, abs.scale, node.id);
-      if (showGrid && node.show_grid) drawNodeGrid(key);
+      safeDrawImage(node.img, node.coordinates[0], node.coordinates[1], node.scale, node.id);
     });
 
-    const topKey = topPopup();
-    if (topKey) {
-      for (const key in images) {
-        const node = images[key];
-        if (node.parent !== topKey) continue;
-        if (!node.img) continue;
-
-        const abs = getAbsolute(key);
-        safeDrawImage(node.img, abs.x, abs.y, abs.scale, node.id);
-        if (showGrid && node.show_grid) drawNodeGrid(key);
-      }
+    // The current layer's items (room items, or a popup's icons) draw on
+    // top of the chain above.
+    for (const node of currentLayer()) {
+      if (!node.img) continue;
+      safeDrawImage(node.img, node.coordinates[0], node.coordinates[1], node.scale, node.id);
     }
+
+    // The one grid is always the topmost layer, so coordinates can be
+    // read straight off the screen no matter what's currently open.
+    if (showGrid && root.show_grid) drawNodeGrid(root);
 
     drawErrors();
   } catch (err) {
@@ -368,25 +349,24 @@ canvas.addEventListener("mousemove", (e) => {
 });
 
 canvas.addEventListener("mousedown", () => {
-  const key = getClickableNodeAt(mouseX, mouseY);
-  if (key) {
-    images[key].onClick();
+  const node = getClickableNodeAt(mouseX, mouseY);
+  if (node) {
+    openPath.push(...node.children);
     return;
   }
 
-  const topKey = topPopup();
-  const node = topKey && images[topKey];
-  if (!node || !node.img) return;
+  const top = openPath[openPath.length - 1];
+  if (!top.img) return;
 
-  const abs = getAbsolute(topKey);
-  const w = node.img.width * abs.scale;
-  const h = node.img.height * abs.scale;
+  const [x, y] = top.coordinates;
+  const w = top.img.width * top.scale;
+  const h = top.img.height * top.scale;
 
   const inside =
-    mouseX >= abs.x && mouseX <= abs.x + w &&
-    mouseY >= abs.y && mouseY <= abs.y + h;
+    mouseX >= x && mouseX <= x + w &&
+    mouseY >= y && mouseY <= y + h;
 
-  if (!inside) hide(); // go back one level in the popup stack
+  if (!inside) closePopup(); // go back one level in the popup chain
 });
 
 window.addEventListener("keydown", (e) => {
