@@ -22,11 +22,7 @@ window.books_onClick = function () {
 };
 
 window.laptop_onClick = function () {
-  show({
-    path: "images/computer/desktop.png",
-    coordinates: [150, 50],
-    scale: 0.42
-  });
+  show("desktop");
 };
 
 // -------------------- DESKTOP APP ICONS --------------------
@@ -51,6 +47,16 @@ window.app_camera_onClick = function () {
 window.app_file_onClick = function () {
   console.log("app_file clicked");
 };
+
+// To reuse the app_file.png icon for a second folder that opens a
+// different popup: add the instance to `iconInstances` in sketch.js
+// (id: "app_file_2", image: "app_file", onPopup: "desktop", ...), add
+// its target to `popups`, then give it its own handler here — any
+// handler can itself call show("someOtherPopupId") to link onward:
+//
+// window.app_file_2_onClick = function () {
+//   show("folder_photos");
+// };
 
 window.app_wizard_onClick = function () {
   console.log("app_wizard clicked");

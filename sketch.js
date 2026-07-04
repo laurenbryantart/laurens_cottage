@@ -20,20 +20,45 @@ let items = {
   "coffeemaker": { "coordinates": [900, 420], "scale": 0.5 }
 };
 
-// -------------------- DESKTOP ICONS --------------------
-// Icons drawn on top of the images/computer/desktop.png popup.
-// coordinates/scale are placeholders in desktop.png's own native pixel
-// space (2732x2048) — nudge them once the popup is visible (press "g"
-// for the grid overlay).
+// -------------------- POPUPS --------------------
+// Registry of every popup screen. Each popup is a full image with its own
+// coordinates/scale. Popups can link to one another — an icon's onClick
+// handler (in onClick_actions.js) just calls show("someOtherPopupId"),
+// and popups stack: clicking outside a popup goes back one level (see
+// hide()/popupStack below) rather than closing everything at once.
 
-let desktopIcons = {
-  "app_affirmations": { "coordinates": [200, 200], "scale": 0.75 },
-  "app_bank": { "coordinates": [900, 200], "scale": 0.75 },
-  "app_borders": { "coordinates": [1600, 200], "scale": 0.75 },
-  "app_camera": { "coordinates": [200, 900], "scale": 0.75 },
-  "app_file": { "coordinates": [900, 900], "scale": 0.75 },
-  "app_wizard": { "coordinates": [1600, 900], "scale": 0.75 }
+let popups = {
+  "desktop": {
+    path: "images/computer/desktop.png",
+    coordinates: [150, 50],
+    scale: 0.42
+  }
+
+  // Add more popups here, e.g.:
+  // "folder_photos": { path: "images/computer/folder_photos.png", coordinates: [0, 0], scale: 0.5 },
 };
+
+// -------------------- ICON INSTANCES --------------------
+// Icons drawn on top of a popup. Multiple instances can reuse the same
+// underlying png (`image`) — give each instance a unique `id` (used to
+// look up its onClick handler as `${id}_onClick`), its own coordinates/
+// scale, and `onPopup` saying which popup (key in `popups` above) it's
+// drawn/clickable on. coordinates/scale are placeholders in the popup
+// image's own native pixel space (desktop.png is 2732x2048) — nudge them
+// once the popup is visible (press "g" for the grid overlay).
+
+let iconInstances = [
+  { id: "app_affirmations", image: "app_affirmations", onPopup: "desktop", coordinates: [200, 200], scale: 0.75 },
+  { id: "app_bank", image: "app_bank", onPopup: "desktop", coordinates: [900, 200], scale: 0.75 },
+  { id: "app_borders", image: "app_borders", onPopup: "desktop", coordinates: [1600, 200], scale: 0.75 },
+  { id: "app_camera", image: "app_camera", onPopup: "desktop", coordinates: [200, 900], scale: 0.75 },
+  { id: "app_file", image: "app_file", onPopup: "desktop", coordinates: [900, 900], scale: 0.75 },
+  { id: "app_wizard", image: "app_wizard", onPopup: "desktop", coordinates: [1600, 900], scale: 0.75 }
+
+  // DEMO of multiple instances of the same png pointing to different
+  // popups — remove/replace once real folder art + popups exist:
+  // { id: "app_file_2", image: "app_file", onPopup: "desktop", coordinates: [1600, 550], scale: 0.75 },
+];
 
 // -------------------- CANVAS --------------------
 
@@ -46,7 +71,7 @@ canvas.height = 960;
 let mouseX = 0;
 let mouseY = 0;
 let showGrid = false;
-let popup = null; // { path, coordinates, scale, img }
+let popupStack = []; // stack of { id, path, coordinates, scale, img } — top of stack is what's visible
 
 
 // -------------------- ERROR SYSTEM --------------------
@@ -93,27 +118,58 @@ function loadImages(items, directory) {
   }
 }
 
+function loadIconInstances(instances, directory) {
+  const cache = {}; // one Image per unique filename, shared across instances
+
+  for (const inst of instances) {
+    if (!cache[inst.image]) {
+      const img = new Image();
+
+      img.onload = () => {};
+      img.onerror = () => {
+        pushError(`Missing image: ${directory}/${inst.image}.png`);
+      };
+
+      img.src = `${directory}/${inst.image}.png`;
+      cache[inst.image] = img;
+    }
+
+    inst.img = cache[inst.image];
+  }
+}
+
 loadImages(items, "images/main_room");
-loadImages(desktopIcons, "images/computer");
+loadIconInstances(iconInstances, "images/computer");
 
 // -------------------- POPUP SYSTEM --------------------
-// Generic popup used by all onClick handlers, e.g.:
-// show({ path: "images/computer/desktop.png", coordinates: [150, 50], scale: 0.42 })
+// Generic popup used by all onClick handlers, e.g.: show("desktop")
+// Popups stack — show() pushes, hide() pops one level, so any popup can
+// link to another and clicking outside walks back down the chain.
 
-function show({ path, coordinates, scale }) {
+function show(popupId) {
+  const def = popups[popupId];
+  if (!def) {
+    pushError(`Unknown popup: ${popupId}`);
+    return;
+  }
+
   const img = new Image();
 
   img.onload = () => {};
   img.onerror = () => {
-    pushError(`Missing image: ${path}`);
+    pushError(`Missing image: ${def.path}`);
   };
 
-  img.src = path;
-  popup = { path, coordinates, scale, img };
+  img.src = def.path;
+  popupStack.push({ id: popupId, path: def.path, coordinates: def.coordinates, scale: def.scale, img });
 }
 
 function hide() {
-  popup = null;
+  popupStack.pop();
+}
+
+function topPopup() {
+  return popupStack[popupStack.length - 1] || null;
 }
 
 // -------------------- SAFE DRAW --------------------
@@ -220,28 +276,29 @@ function getClickableKeyAt(x, y) {
 }
 
 function getClickableIconKeyAt(x, y) {
-  if (!popup || popup.path !== "images/computer/desktop.png") return null;
+  const popup = topPopup();
+  if (!popup) return null;
 
   const [px, py] = popup.coordinates;
 
-  for (let key in desktopIcons) {
-    const icon = desktopIcons[key];
-    if (!icon.img) continue;
+  for (const inst of iconInstances) {
+    if (inst.onPopup !== popup.id) continue;
+    if (!inst.img) continue;
 
-    const fn = window[`${key}_onClick`];
+    const fn = window[`${inst.id}_onClick`];
     if (typeof fn !== "function") continue;
 
-    const [ix, iy] = icon.coordinates;
+    const [ix, iy] = inst.coordinates;
     const iconX = px + ix * popup.scale;
     const iconY = py + iy * popup.scale;
-    const w = icon.img.width * icon.scale * popup.scale;
-    const h = icon.img.height * icon.scale * popup.scale;
+    const w = inst.img.width * inst.scale * popup.scale;
+    const h = inst.img.height * inst.scale * popup.scale;
 
     const hit =
       x >= iconX && x <= iconX + w &&
       y >= iconY && y <= iconY + h;
 
-    if (hit) return key;
+    if (hit) return inst.id;
   }
   return null;
 }
@@ -270,6 +327,7 @@ function draw() {
     pushError(`FATAL DRAW LOOP: ${err.message}`);
   }
 
+  const popup = topPopup();
   if (popup) {
     const [px, py] = popup.coordinates;
 
@@ -278,17 +336,15 @@ function draw() {
 
     safeDrawImage(popup.img, px, py, popup.scale, popup.path);
 
-    if (popup.path === "images/computer/desktop.png") {
-      for (let key in desktopIcons) {
-        const icon = desktopIcons[key];
-        if (!icon.img) continue;
+    for (const inst of iconInstances) {
+      if (inst.onPopup !== popup.id) continue;
+      if (!inst.img) continue;
 
-        const [ix, iy] = icon.coordinates;
-        const x = px + ix * popup.scale;
-        const y = py + iy * popup.scale;
+      const [ix, iy] = inst.coordinates;
+      const x = px + ix * popup.scale;
+      const y = py + iy * popup.scale;
 
-        safeDrawImage(icon.img, x, y, icon.scale * popup.scale, key);
-      }
+      safeDrawImage(inst.img, x, y, inst.scale * popup.scale, inst.id);
     }
   }
 
@@ -305,13 +361,14 @@ canvas.addEventListener("mousemove", (e) => {
   mouseX = e.clientX - rect.left;
   mouseY = e.clientY - rect.top;
 
-  const clickable = popup
+  const clickable = topPopup()
     ? getClickableIconKeyAt(mouseX, mouseY)
     : getClickableKeyAt(mouseX, mouseY);
   canvas.style.cursor = clickable ? "pointer" : "default";
 });
 
 canvas.addEventListener("mousedown", () => {
+  const popup = topPopup();
   if (popup) {
     const iconKey = getClickableIconKeyAt(mouseX, mouseY);
     if (iconKey) {
@@ -330,7 +387,7 @@ canvas.addEventListener("mousedown", () => {
       mouseY >= py &&
       mouseY <= py + h;
 
-    if (!inside) hide();
+    if (!inside) hide(); // go back one level in the popup stack
     return;
   }
 
