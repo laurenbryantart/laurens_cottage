@@ -2,7 +2,7 @@
 // NOTE: no onClick inside items anymore
 
 let items = {
-  "room_background": { "coordinates": [0, 0], "scale": 1.7, fullscreen: true },
+  "room_background": { "coordinates": [0, 0], "scale": 0.92},
 
   "bed": { "coordinates": [47, 30], "scale": 0.45 },
   "pattern": { "coordinates": [680, 29], "scale": 0.5 },
@@ -362,10 +362,10 @@ function draw() {
       const item = items[key];
       const [x, y] = item.coordinates;
 
-      if (item.fullscreen) {
-        safeDrawImage(item.img, 0, 0, 1, key);
-        continue;
-      }
+      // if (item.fullscreen) {
+      //   safeDrawImage(item.img, 0, 0, item.scale, key);
+      //   continue;
+      // }
 
       safeDrawImage(item.img, x, y, item.scale, key);
     }
