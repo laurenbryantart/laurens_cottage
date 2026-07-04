@@ -31,6 +31,8 @@ canvas.height = 960;
 let mouseX = 0;
 let mouseY = 0;
 let showGrid = false;
+let popupImage = null;
+
 
 // -------------------- ERROR SYSTEM --------------------
 
@@ -207,6 +209,22 @@ function draw() {
     pushError(`FATAL DRAW LOOP: ${err.message}`);
   }
 
+  if (popupImage) {
+    const scale = 0.8;
+
+    const w = canvas.width * scale;
+    const h = canvas.height * scale;
+
+    const x = (canvas.width - w) / 2;
+    const y = (canvas.height - h) / 2;
+
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.drawImage(popupImage, x, y, w, h);
+  }
+
+
   requestAnimationFrame(draw);
 }
 
@@ -235,6 +253,14 @@ canvas.addEventListener("mousedown", () => {
   } else {
     console.warn(`No click handler found: ${fnName}`);
   }
+
+
+  if (popupImage) {
+    popupImage = null;
+    return;
+  }
+
+
 });
 window.addEventListener("keydown", (e) => {
   if (e.key === "g") showGrid = !showGrid;

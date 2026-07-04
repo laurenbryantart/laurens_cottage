@@ -22,7 +22,12 @@ window.books_onClick = function () {
 };
 
 window.laptop_onClick = function () {
-  console.log("Laptop clicked");
+  const img = new Image();
+  img.src = "popup_images/desktop.png";
+
+  img.onload = () => {
+    popupImage = img;
+  };
 };
 
 window.teapot_onClick = function () {
