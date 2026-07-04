@@ -65,7 +65,7 @@ function safeTry(label, fn) {
 // -------------------- IMAGE LOADING --------------------
 
 function loadImages(items) {
-  const directory = "main_images";
+  const directory = "images/main_room";
 
   for (let key in items) {
     const img = new Image();
@@ -242,25 +242,32 @@ canvas.addEventListener("mousemove", (e) => {
 });
 
 canvas.addEventListener("mousedown", () => {
+  if (popupImage) {
+    const scale = 0.8;
+
+    const w = canvas.width * scale;
+    const h = canvas.height * scale;
+
+    const x = (canvas.width - w) / 2;
+    const y = (canvas.height - h) / 2;
+
+    const inside =
+      mouseX >= x &&
+      mouseX <= x + w &&
+      mouseY >= y &&
+      mouseY <= y + h;
+
+    if (!inside) {
+      popupImage = null;
+      return;
+    }
+  }
+
   const key = getClickableKeyAt(mouseX, mouseY);
   if (!key) return;
 
-  const fnName = `${key}_onClick`;
-  const fn = window[fnName];
-
-  if (typeof fn === "function") {
-    fn();
-  } else {
-    console.warn(`No click handler found: ${fnName}`);
-  }
-
-
-  if (popupImage) {
-    popupImage = null;
-    return;
-  }
-
-
+  const fn = window[`${key}_onClick`];
+  if (typeof fn === "function") fn();
 });
 window.addEventListener("keydown", (e) => {
   if (e.key === "g") showGrid = !showGrid;

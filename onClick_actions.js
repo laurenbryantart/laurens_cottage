@@ -23,7 +23,7 @@ window.books_onClick = function () {
 
 window.laptop_onClick = function () {
   const img = new Image();
-  img.src = "popup_images/desktop.png";
+  img.src = "images/computer/desktop.png";
 
   img.onload = () => {
     popupImage = img;
