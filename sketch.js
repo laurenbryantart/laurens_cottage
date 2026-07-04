@@ -7,7 +7,8 @@
 //               key below, via the normalization loop after the dict —
 //               only set explicitly when the key can't double as the
 //               filename, e.g. the three app_file folder instances)
-//   path        image file to draw
+//   path        image file to draw, relative to the "images/" folder
+//               (defaults to that folder — no need to write the prefix)
 //   coordinates [x, y] relative to `parent` (relative to the canvas
 //               origin if parent is null)
 //   scale       relative to `parent`'s scale (root nodes: absolute)
@@ -19,54 +20,58 @@
 //               "g" key is toggled on (defaults to false — see GRID below)
 //   onClick     attached later, from onClick_actions.js
 
+const IMAGES_FOLDER = "images/";
+
 let images = {
   // ---- room (always visible, parent: null) ----
-  room_background: { path: "images/main_room/room_background.png", coordinates: [0, 0], scale: 0.92, parent: null, show_grid: true },
+  room_background: { path: "main_room/room_background.png", coordinates: [0, 0], scale: 0.92, parent: null, show_grid: true },
 
-  bed: { path: "images/main_room/bed.png", coordinates: [47, 30], scale: 0.45, parent: "room_background" },
-  pattern: { path: "images/main_room/pattern.png", coordinates: [680, 29], scale: 0.5, parent: "room_background" },
-  calendar: { path: "images/main_room/calendar.png", coordinates: [1240, 43], scale: 0.39, parent: "room_background" },
-  flowers: { path: "images/main_room/flowers.png", coordinates: [1300, 150], scale: 0.4, parent: "room_background" },
-  books: { path: "images/main_room/books.png", coordinates: [350, 320], scale: 0.45, parent: "room_background" },
-  laptop: { path: "images/main_room/laptop.png", coordinates: [555, 60], scale: 0.5, parent: "room_background" },
-  teapot: { path: "images/main_room/teapot.png", coordinates: [1287, 360], scale: 0.45, parent: "room_background" },
-  notes: { path: "images/main_room/notes.png", coordinates: [1285, 300], scale: 0.4, parent: "room_background" },
-  paper: { path: "images/main_room/paper.png", coordinates: [600, 500], scale: 0.5, parent: "room_background" },
-  drawing: { path: "images/main_room/drawing.png", coordinates: [677, 160], scale: 0.4, parent: "room_background" },
-  laundry: { path: "images/main_room/laundry.png", coordinates: [300, 210], scale: 0.45, parent: "room_background" },
+  bed: { path: "main_room/bed.png", coordinates: [47, 30], scale: 0.45, parent: "room_background" },
+  pattern: { path: "main_room/pattern.png", coordinates: [680, 29], scale: 0.5, parent: "room_background" },
+  calendar: { path: "main_room/calendar.png", coordinates: [1240, 43], scale: 0.39, parent: "room_background" },
+  flowers: { path: "main_room/flowers.png", coordinates: [1300, 150], scale: 0.4, parent: "room_background" },
+  books: { path: "main_room/books.png", coordinates: [350, 320], scale: 0.45, parent: "room_background" },
+  laptop: { path: "main_room/laptop.png", coordinates: [555, 60], scale: 0.5, parent: "room_background" },
+  teapot: { path: "main_room/teapot.png", coordinates: [1287, 360], scale: 0.45, parent: "room_background" },
+  notes: { path: "main_room/notes.png", coordinates: [1285, 300], scale: 0.4, parent: "room_background" },
+  paper: { path: "main_room/paper.png", coordinates: [600, 500], scale: 0.5, parent: "room_background" },
+  drawing: { path: "main_room/drawing.png", coordinates: [677, 160], scale: 0.4, parent: "room_background" },
+  laundry: { path: "main_room/laundry.png", coordinates: [300, 210], scale: 0.45, parent: "room_background" },
 
   // no onClick attached below → not clickable
-  coffeemaker: { path: "images/main_room/coffeemaker.png", coordinates: [900, 420], scale: 0.5, parent: "room_background" },
+  coffeemaker: { path: "main_room/coffeemaker.png", coordinates: [900, 420], scale: 0.5, parent: "room_background" },
 
   // ---- desktop popup + its icons (parent: "desktop") ----
-  desktop: { path: "images/computer/desktop.png", coordinates: [150, 50], scale: 0.42, parent: null, popup: true, show_grid: true },
+  desktop: { path: "computer/desktop.png", coordinates: [150, 50], scale: 0.42, parent: null, popup: true, show_grid: true },
 
-  app_affirmations: { path: "images/computer/app_affirmations.png", coordinates: [800, 350], scale: 0.75, parent: "desktop" },
-  app_bank: { path: "images/computer/app_bank.png", coordinates: [900, 200], scale: 0.75, parent: "desktop" },
-  app_borders: { path: "images/computer/app_borders.png", coordinates: [1600, 200], scale: 0.75, parent: "desktop" },
-  app_camera: { path: "images/computer/app_camera.png", coordinates: [200, 900], scale: 0.75, parent: "desktop" },
+  app_affirmations: { path: "computer/app_affirmations.png", coordinates: [800, 350], scale: 0.75, parent: "desktop" },
+  app_bank: { path: "computer/app_bank.png", coordinates: [900, 200], scale: 0.75, parent: "desktop" },
+  app_borders: { path: "computer/app_borders.png", coordinates: [1600, 200], scale: 0.75, parent: "desktop" },
+  app_camera: { path: "computer/app_camera.png", coordinates: [200, 900], scale: 0.75, parent: "desktop" },
 
   // three folder instances share the app_file.png art — different keys,
   // same `id`, so they still share one cached Image
-  app_file_1: { id: "app_file", path: "images/computer/app_file.png", coordinates: [200, 300], scale: 1, parent: "desktop" },
-  app_file_2: { id: "app_file", path: "images/computer/app_file.png", coordinates: [200, 600], scale: 1, parent: "desktop" },
-  app_file_3: { id: "app_file", path: "images/computer/app_file.png", coordinates: [200, 900], scale: 1, parent: "desktop" },
+  app_file_1: { id: "app_file", path: "computer/app_file.png", coordinates: [200, 300], scale: 1, parent: "desktop" },
+  app_file_2: { id: "app_file", path: "computer/app_file.png", coordinates: [200, 600], scale: 1, parent: "desktop" },
+  app_file_3: { id: "app_file", path: "computer/app_file.png", coordinates: [200, 900], scale: 1, parent: "desktop" },
 
-  app_wizard: { path: "images/computer/app_wizard.png", coordinates: [1600, 900], scale: 0.75, parent: "desktop" },
+  app_wizard: { path: "computer/app_wizard.png", coordinates: [1600, 900], scale: 0.75, parent: "desktop" },
 
   // no onClick attached yet → not clickable
-  app_wizard22: { id: "alert_compromised_wizard", path: "images/computer/alert_compromised_wizard.png", coordinates: [1000, 900], scale: 0.75, parent: "desktop" },
+  app_wizard22: { id: "alert_compromised_wizard", path: "computer/alert_compromised_wizard.png", coordinates: [1000, 900], scale: 0.75, parent: "desktop" },
 
 
-  affirmations_popup: { path: "images/computer/app_wizard.png", coordinates: [1600, 900], scale: 0.75, parent: "desktop" },
+  affirmations_popup: { path: "computer/app_wizard.png", coordinates: [1600, 900], scale: 0.75, parent: "desktop" },
 
   // images/computer/affirmations_popup.png
 };
 
-// id defaults to the dict key unless explicitly overridden above
+// id defaults to the dict key, path defaults to the "images/" folder,
+// unless explicitly overridden above
 for (const key in images) {
   if (images[key].id === undefined) images[key].id = key;
   if (images[key].show_grid === undefined) images[key].show_grid = false;
+  images[key].path = IMAGES_FOLDER + images[key].path;
 }
 
 // -------------------- POPUP TREE --------------------
@@ -199,14 +204,19 @@ function drawNodeGrid(key, cellSize = 100) {
   if (!img || !img.complete || img.naturalWidth === 0) return;
 
   const abs = getAbsolute(key);
-  const screenW = img.naturalWidth * abs.scale;
-  const screenH = img.naturalHeight * abs.scale;
+  const nativeW = img.naturalWidth;
+  const nativeH = img.naturalHeight;
+  const screenW = nativeW * abs.scale;
+  const screenH = nativeH * abs.scale;
 
   ctx.strokeStyle = "black";
   ctx.lineWidth = 1;
 
-  for (let sx = 0; sx <= screenW; sx += cellSize) {
-    const x = abs.x + sx;
+  // Lines are spaced every `cellSize` native image pixels (0, 100, 200, ...)
+  // and only then converted to screen space, so grid squares always land on
+  // round 100s regardless of the node's scale.
+  for (let nx = 0; nx <= nativeW; nx += cellSize) {
+    const x = abs.x + nx * abs.scale;
     if (x < 0 || x > canvas.width) continue;
     ctx.beginPath();
     ctx.moveTo(x, Math.max(0, abs.y));
@@ -214,8 +224,8 @@ function drawNodeGrid(key, cellSize = 100) {
     ctx.stroke();
   }
 
-  for (let sy = 0; sy <= screenH; sy += cellSize) {
-    const y = abs.y + sy;
+  for (let ny = 0; ny <= nativeH; ny += cellSize) {
+    const y = abs.y + ny * abs.scale;
     if (y < 0 || y > canvas.height) continue;
     ctx.beginPath();
     ctx.moveTo(Math.max(0, abs.x), y);
@@ -226,17 +236,12 @@ function drawNodeGrid(key, cellSize = 100) {
   ctx.fillStyle = "black";
   ctx.font = "14px monospace";
 
-  for (let sx = 0; sx <= screenW; sx += cellSize * 2) {
-    for (let sy = 0; sy <= screenH; sy += cellSize * 2) {
-      const x = abs.x + sx;
-      const y = abs.y + sy;
+  for (let nx = 0; nx <= nativeW; nx += cellSize * 2) {
+    for (let ny = 0; ny <= nativeH; ny += cellSize * 2) {
+      const x = abs.x + nx * abs.scale;
+      const y = abs.y + ny * abs.scale;
       if (x < 0 || x > canvas.width || y < 0 || y > canvas.height) continue;
-      // Labels stay in native image pixel space so they can be pasted
-      // straight into a child node's `coordinates`, even though the
-      // grid lines themselves are spaced at a fixed screen pixel size.
-      const nx = Math.round(sx / abs.scale);
-      const ny = Math.round(sy / abs.scale);
-      ctx.fillText(`${nx},${ny}`, x + 2, y + 12);
+      ctx.fillText(`(${nx},${ny})`, x + 2, y + 12);
     }
   }
 }
