@@ -20,6 +20,21 @@ let items = {
   "coffeemaker": { "coordinates": [900, 420], "scale": 0.5 }
 };
 
+// -------------------- DESKTOP ICONS --------------------
+// Icons drawn on top of the images/computer/desktop.png popup.
+// coordinates/scale are placeholders in desktop.png's own native pixel
+// space (2732x2048) — nudge them once the popup is visible (press "g"
+// for the grid overlay).
+
+let desktopIcons = {
+  "app_affirmations": { "coordinates": [200, 200], "scale": 0.75 },
+  "app_bank": { "coordinates": [900, 200], "scale": 0.75 },
+  "app_borders": { "coordinates": [1600, 200], "scale": 0.75 },
+  "app_camera": { "coordinates": [200, 900], "scale": 0.75 },
+  "app_file": { "coordinates": [900, 900], "scale": 0.75 },
+  "app_wizard": { "coordinates": [1600, 900], "scale": 0.75 }
+};
+
 // -------------------- CANVAS --------------------
 
 const canvas = document.getElementById("canvas");
@@ -31,7 +46,7 @@ canvas.height = 960;
 let mouseX = 0;
 let mouseY = 0;
 let showGrid = false;
-let popupImage = null;
+let popup = null; // { path, coordinates, scale, img }
 
 
 // -------------------- ERROR SYSTEM --------------------
@@ -64,9 +79,7 @@ function safeTry(label, fn) {
 
 // -------------------- IMAGE LOADING --------------------
 
-function loadImages(items) {
-  const directory = "images/main_room";
-
+function loadImages(items, directory) {
   for (let key in items) {
     const img = new Image();
 
@@ -80,7 +93,28 @@ function loadImages(items) {
   }
 }
 
-loadImages(items);
+loadImages(items, "images/main_room");
+loadImages(desktopIcons, "images/computer");
+
+// -------------------- POPUP SYSTEM --------------------
+// Generic popup used by all onClick handlers, e.g.:
+// show({ path: "images/computer/desktop.png", coordinates: [150, 50], scale: 0.42 })
+
+function show({ path, coordinates, scale }) {
+  const img = new Image();
+
+  img.onload = () => {};
+  img.onerror = () => {
+    pushError(`Missing image: ${path}`);
+  };
+
+  img.src = path;
+  popup = { path, coordinates, scale, img };
+}
+
+function hide() {
+  popup = null;
+}
 
 // -------------------- SAFE DRAW --------------------
 
@@ -185,6 +219,33 @@ function getClickableKeyAt(x, y) {
   return null;
 }
 
+function getClickableIconKeyAt(x, y) {
+  if (!popup || popup.path !== "images/computer/desktop.png") return null;
+
+  const [px, py] = popup.coordinates;
+
+  for (let key in desktopIcons) {
+    const icon = desktopIcons[key];
+    if (!icon.img) continue;
+
+    const fn = window[`${key}_onClick`];
+    if (typeof fn !== "function") continue;
+
+    const [ix, iy] = icon.coordinates;
+    const iconX = px + ix * popup.scale;
+    const iconY = py + iy * popup.scale;
+    const w = icon.img.width * icon.scale * popup.scale;
+    const h = icon.img.height * icon.scale * popup.scale;
+
+    const hit =
+      x >= iconX && x <= iconX + w &&
+      y >= iconY && y <= iconY + h;
+
+    if (hit) return key;
+  }
+  return null;
+}
+
 // -------------------- DRAW LOOP --------------------
 
 function draw() {
@@ -209,19 +270,26 @@ function draw() {
     pushError(`FATAL DRAW LOOP: ${err.message}`);
   }
 
-  if (popupImage) {
-    const scale = 0.8;
-
-    const w = canvas.width * scale;
-    const h = canvas.height * scale;
-
-    const x = (canvas.width - w) / 2;
-    const y = (canvas.height - h) / 2;
+  if (popup) {
+    const [px, py] = popup.coordinates;
 
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.drawImage(popupImage, x, y, w, h);
+    safeDrawImage(popup.img, px, py, popup.scale, popup.path);
+
+    if (popup.path === "images/computer/desktop.png") {
+      for (let key in desktopIcons) {
+        const icon = desktopIcons[key];
+        if (!icon.img) continue;
+
+        const [ix, iy] = icon.coordinates;
+        const x = px + ix * popup.scale;
+        const y = py + iy * popup.scale;
+
+        safeDrawImage(icon.img, x, y, icon.scale * popup.scale, key);
+      }
+    }
   }
 
 
@@ -237,30 +305,33 @@ canvas.addEventListener("mousemove", (e) => {
   mouseX = e.clientX - rect.left;
   mouseY = e.clientY - rect.top;
 
-  const clickable = getClickableKeyAt(mouseX, mouseY);
+  const clickable = popup
+    ? getClickableIconKeyAt(mouseX, mouseY)
+    : getClickableKeyAt(mouseX, mouseY);
   canvas.style.cursor = clickable ? "pointer" : "default";
 });
 
 canvas.addEventListener("mousedown", () => {
-  if (popupImage) {
-    const scale = 0.8;
-
-    const w = canvas.width * scale;
-    const h = canvas.height * scale;
-
-    const x = (canvas.width - w) / 2;
-    const y = (canvas.height - h) / 2;
-
-    const inside =
-      mouseX >= x &&
-      mouseX <= x + w &&
-      mouseY >= y &&
-      mouseY <= y + h;
-
-    if (!inside) {
-      popupImage = null;
+  if (popup) {
+    const iconKey = getClickableIconKeyAt(mouseX, mouseY);
+    if (iconKey) {
+      const fn = window[`${iconKey}_onClick`];
+      if (typeof fn === "function") fn();
       return;
     }
+
+    const [px, py] = popup.coordinates;
+    const w = popup.img.width * popup.scale;
+    const h = popup.img.height * popup.scale;
+
+    const inside =
+      mouseX >= px &&
+      mouseX <= px + w &&
+      mouseY >= py &&
+      mouseY <= py + h;
+
+    if (!inside) hide();
+    return;
   }
 
   const key = getClickableKeyAt(mouseX, mouseY);

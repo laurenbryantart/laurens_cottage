@@ -22,12 +22,38 @@ window.books_onClick = function () {
 };
 
 window.laptop_onClick = function () {
-  const img = new Image();
-  img.src = "images/computer/desktop.png";
+  show({
+    path: "images/computer/desktop.png",
+    coordinates: [150, 50],
+    scale: 0.42
+  });
+};
 
-  img.onload = () => {
-    popupImage = img;
-  };
+// -------------------- DESKTOP APP ICONS --------------------
+// Placeholders — replace with real behavior per app.
+
+window.app_affirmations_onClick = function () {
+  console.log("app_affirmations clicked");
+};
+
+window.app_bank_onClick = function () {
+  console.log("app_bank clicked");
+};
+
+window.app_borders_onClick = function () {
+  console.log("app_borders clicked");
+};
+
+window.app_camera_onClick = function () {
+  console.log("app_camera clicked");
+};
+
+window.app_file_onClick = function () {
+  console.log("app_file clicked");
+};
+
+window.app_wizard_onClick = function () {
+  console.log("app_wizard clicked");
 };
 
 window.teapot_onClick = function () {
