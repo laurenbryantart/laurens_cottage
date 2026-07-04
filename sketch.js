@@ -48,12 +48,15 @@ let popups = {
 // once the popup is visible (press "g" for the grid overlay).
 
 let iconInstances = [
-  { id: "app_affirmations", image: "app_affirmations", onPopup: "desktop", coordinates: [200, 200], scale: 0.75 },
+  { id: "app_affirmations", image: "app_affirmations", onPopup: "desktop", coordinates: [800, 350], scale: 0.75 },
   { id: "app_bank", image: "app_bank", onPopup: "desktop", coordinates: [900, 200], scale: 0.75 },
   { id: "app_borders", image: "app_borders", onPopup: "desktop", coordinates: [1600, 200], scale: 0.75 },
   { id: "app_camera", image: "app_camera", onPopup: "desktop", coordinates: [200, 900], scale: 0.75 },
-  { id: "app_file", image: "app_file", onPopup: "desktop", coordinates: [900, 900], scale: 0.75 },
-  { id: "app_wizard", image: "app_wizard", onPopup: "desktop", coordinates: [1600, 900], scale: 0.75 }
+  { id: "app_file1", image: "app_file", onPopup: "desktop", coordinates: [200, 300], scale: 1 },
+  { id: "app_file2", image: "app_file", onPopup: "desktop", coordinates: [200, 600], scale: 1 },
+  { id: "app_file3", image: "app_file", onPopup: "desktop", coordinates: [200, 900], scale: 1 },
+  { id: "app_wizard", image: "app_wizard", onPopup: "desktop", coordinates: [1600, 900], scale: 0.75 },
+  { id: "app_wizard22", image: "alert_compromised_wizard", onPopup: "desktop", coordinates: [1000, 900], scale: 0.75 }
 
   // DEMO of multiple instances of the same png pointing to different
   // popups — remove/replace once real folder art + popups exist:
