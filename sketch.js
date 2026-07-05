@@ -19,11 +19,12 @@ let images = {
       { id: "books", path: "main_room/books.png", coordinates_by_percentage: [32.2, 40.6], scale: 0.414 },
 
       {
-        id: "laptop", path: "main_room/laptop.png", coordinates_by_percentage: [44.4, 16.3], scale: 0.46
+        id: "laptop", path: "main_room/laptop.png", coordinates_by_percentage: [44.4, 16.3], scale: 0.46,
         // ---- desktop popup + its icons, revealed by clicking the laptop ----
         children: [
           {
             id: "desktop", path: "computer/desktop.png", coordinates_by_percentage: [50, 50], scale: 0.42,
+            do_dark_background: true,
             children: [
               { id: "app_bank", path: "computer/app_bank.png", coordinates_by_percentage: [48.4, 30.0], scale: APP_SIZE },
               { id: "app_borders", path: "computer/app_borders.png", coordinates_by_percentage: [65.7, 55.7], scale: APP_SIZE },
@@ -67,6 +68,7 @@ const root = images.room_background;
 function normalize(node) {
   if (node.children === undefined) node.children = [];
   if (node.hide === undefined) node.hide = [];
+  if (node.do_dark_background === undefined) node.do_dark_background = false;
   node.path = IMAGES_FOLDER + node.path;
   node.children.forEach(normalize);
 }
@@ -390,6 +392,13 @@ function draw() {
     openPath.forEach((node) => {
       if (hidden.has(node.id)) return;
 
+      // Dims everything drawn so far (the layers behind this node), leaving
+      // this node and its own children — drawn next — at full brightness.
+      if (node.do_dark_background) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
       safeDrawImage(node.img, node.coordinates_by_percentage, node.scale, node.id);
       if (node.text) safeTry(`affirmation text: ${node.id}`, () => drawAffirmationText(node));
 
@@ -431,24 +440,27 @@ canvas.addEventListener("mousedown", () => {
     return;
   }
 
+  const top = openPath[openPath.length - 1];
+  const w = top.img ? top.img.width * top.scale : 0;
+  const h = top.img ? top.img.height * top.scale : 0;
+  const { x, y } = top.img ? topLeftFor(top.coordinates_by_percentage, w, h) : { x: 0, y: 0 };
+
+  const inside =
+    top.img &&
+    mouseX >= x && mouseX <= x + w &&
+    mouseY >= y && mouseY <= y + h;
+
+  if (openPath.length > 1) {
+    if (!inside) closePopup(); // go back one level in the popup chain
+    return;
+  }
+
+  // Only the base room is open — nothing to close, so fall back to the
+  // coordinate-copy debug helper.
   if (CLICK_TO_SHOW_COORDINATES) {
     const xPct = (mouseX / canvas.width) * 100;
     const yPct = (mouseY / canvas.height) * 100;
     const coords = `[${xPct.toFixed(1)}, ${yPct.toFixed(1)}]`;
     navigator.clipboard.writeText(coords).catch((err) => pushError(`Clipboard copy failed: ${err.message}`));
-    return;
   }
-
-  const top = openPath[openPath.length - 1];
-  if (!top.img) return;
-
-  const w = top.img.width * top.scale;
-  const h = top.img.height * top.scale;
-  const { x, y } = topLeftFor(top.coordinates_by_percentage, w, h);
-
-  const inside =
-    mouseX >= x && mouseX <= x + w &&
-    mouseY >= y && mouseY <= y + h;
-
-  if (!inside) closePopup(); // go back one level in the popup chain
 });
