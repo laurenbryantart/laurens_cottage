@@ -51,8 +51,16 @@ let images = {
       { path: "main_room/drawing.png", coordinates_by_percentage: [52.2, 28.5], scale: 0.36 },
       { path: "main_room/laundry.png", coordinates_by_percentage: [26.2, 32.8], scale: 0.41 },
 
+      // Clicking the coffeemaker opens the coffee counter minigame — see
+      // the "COFFEE MINIGAME" section further down for how it works.
       { path: "main_room/coffeemaker.png", coordinates_by_percentage: [83.5, 18.7], scale: 0.46, children: [
-        { path: "main_room/coffeemaker.png", coordinates_by_percentage: [83.5, 25.7], scale: 0.46}
+        {
+          // id defaults to "coffeecounter" (from the filename) — the coffee
+          // minigame code below keys off that id, so don't rename it.
+          path: "coffeemaker/coffeecounter.png",
+          coordinates_by_percentage: [50, 50], scale: 0.26,
+          do_dark_background: true,
+        },
       ] },
     ]
   }
@@ -394,6 +402,198 @@ function getClickableNodeAt(x, y) {
   return null;
 }
 
+// -------------------- COFFEE MINIGAME --------------------
+// This whole minigame is one mechanic reused four times: click a moveable
+// thing (a mug, the carafe once it's brewed, the milk, the whip) to pick it
+// up — it then follows the mouse — and click again to set it down wherever
+// you clicked. Setting a "tool" (carafe/milk/whip) down exactly on a mug in
+// the right state also applies its effect to that mug; otherwise the tool
+// just rests at the spot you clicked, ready to be picked up again. Nothing
+// here plugs into the generic popup-tree engine above — like
+// app_affirmations, it's simple enough to special-case by id instead.
+
+// yellowmug's filled versions are named "yellowcup_..." rather than
+// "yellowmug_...", so that's spelled out explicitly here rather than
+// derived from the mug's own name.
+const MUG_STAGES = {
+  papercup: { coffee: "papercup_coffee", coffee_milk: "papercup_coffee_milk" },
+  greenmug: { coffee: "greenmug_coffee", coffee_milk: "greenmug_coffee_milk" },
+  redmug: { coffee: "redmug_coffee", coffee_milk: "redmug_coffee_milk" },
+  wavymug: { coffee: "wavymug_coffee", coffee_milk: "wavymug_coffee_milk" },
+  yellowmug: { coffee: "yellowcup_coffee", coffee_milk: "yellowcup_coffee_milk" },
+};
+
+const COFFEE_FOLDER = IMAGES_FOLDER + "coffeemaker/";
+
+// One Image per unique coffee-related file, fetched once and reused.
+const coffeeImageCache = {};
+function coffeeImage(filename) {
+  if (!coffeeImageCache[filename]) {
+    const img = new Image();
+    img.onerror = () => pushError(`Missing image: ${COFFEE_FOLDER}${filename}.png`);
+    img.src = `${COFFEE_FOLDER}${filename}.png`;
+    coffeeImageCache[filename] = img;
+  }
+  return coffeeImageCache[filename];
+}
+
+// Every mug on the counter, plus the milk and whip cans. Each has its own
+// position (so it can be picked up and set down anywhere) — these starting
+// spots are a best guess; nudge them with the coordinate-copy trick below.
+let coffeeItems = [
+  { kind: "mug", mugType: "papercup", state: "empty", hasWhip: false, coordinates_by_percentage: [15.8, 70.8], scale: 0.28 },
+  { kind: "mug", mugType: "greenmug", state: "empty", hasWhip: false, coordinates_by_percentage: [23.4, 78.1], scale: 0.28 },
+  { kind: "mug", mugType: "redmug", state: "empty", hasWhip: false, coordinates_by_percentage: [17.2, 83.3], scale: 0.28 },
+  { kind: "mug", mugType: "wavymug", state: "empty", hasWhip: false, coordinates_by_percentage: [29.6, 67.7], scale: 0.28 },
+  { kind: "mug", mugType: "yellowmug", state: "empty", hasWhip: false, coordinates_by_percentage: [32.4, 79.2], scale: 0.28 },
+  { kind: "milk", coordinates_by_percentage: [74.4, 72.9], scale: 0.22 },
+  { kind: "whip", coordinates_by_percentage: [82.6, 72.9], scale: 0.22 },
+];
+
+// "empty" -> waiting to brew. "brewing" -> mid-brew, machine not clickable.
+// "full" -> ready to pick up and pour. "nocarafe" -> the carafe is out and
+// about (held, or set down loose on the counter), so the machine itself
+// does nothing until that carafe gets poured into a mug and disappears.
+let machineState = "empty";
+const MACHINE_COORDS = [50, 61];
+const MACHINE_SCALE = 0.21;
+const CARAFE_SCALE = 0.16;
+const BREW_TIME_MS = 2500;
+
+// Whichever coffeeItems entry is currently stuck to the mouse. Null when
+// nothing is held.
+let heldItem = null;
+
+function machineImagePath() {
+  if (machineState === "nocarafe") return "coffeemachine_nocarafe";
+  if (machineState === "full") return "coffeemachine_carafe_full";
+  return "coffeemachine_carafe_empty"; // "empty" and "brewing" look the same
+}
+
+function itemImagePath(item) {
+  if (item.kind === "mug") return item.state === "empty" ? item.mugType : MUG_STAGES[item.mugType][item.state];
+  if (item.kind === "milk") return "topping_oatmilk";
+  if (item.kind === "whip") return "topping_whip";
+  return "carafe_pouring"; // item.kind === "carafe"
+}
+
+function coffeeItemRect(item) {
+  const img = coffeeImage(itemImagePath(item));
+  const w = img.width * item.scale;
+  const h = img.height * item.scale;
+  const { x, y } = topLeftFor(item.coordinates_by_percentage, w, h);
+  return { img, x, y, w, h };
+}
+
+function hitTestItem(item, x, y) {
+  const { x: ix, y: iy, w, h } = coffeeItemRect(item);
+  return x >= ix && x <= ix + w && y >= iy && y <= iy + h;
+}
+
+function hitTestMachine(x, y) {
+  const img = coffeeImage(machineImagePath());
+  const w = img.width * MACHINE_SCALE;
+  const h = img.height * MACHINE_SCALE;
+  const { x: mx, y: my } = topLeftFor(MACHINE_COORDS, w, h);
+  return x >= mx && x <= mx + w && y >= my && y <= my + h;
+}
+
+function pixelsToPercentage(x, y) {
+  return [(x / canvas.width) * 100, (y / canvas.height) * 100];
+}
+
+// Sets whatever's held down at (x, y). If it lands on a mug in the right
+// state, the effect (pour coffee / add milk / add whip) applies instead of
+// just resting the tool there. Either way — Lauren didn't want anything to
+// snap back — it ends up exactly where the click was.
+function placeHeldItem(x, y) {
+  const item = heldItem;
+
+  if (item.kind === "carafe" || item.kind === "milk" || item.kind === "whip") {
+    const targetMug = coffeeItems.find(
+      (other) => other !== item && other.kind === "mug" && hitTestItem(other, x, y)
+    );
+
+    if (targetMug) {
+      if (item.kind === "carafe" && targetMug.state === "empty") {
+        targetMug.state = "coffee";
+        coffeeItems = coffeeItems.filter((i) => i !== item);
+        machineState = "empty";
+        heldItem = null;
+        return; // the carafe is consumed, nothing left to place
+      }
+      if (item.kind === "milk" && targetMug.state === "coffee") {
+        targetMug.state = "coffee_milk";
+      }
+      if (item.kind === "whip" && targetMug.state !== "empty") {
+        targetMug.hasWhip = true;
+      }
+    }
+  }
+
+  item.coordinates_by_percentage = pixelsToPercentage(x, y);
+  heldItem = null;
+}
+
+// Returns true once it's handled the click, so the generic click logic
+// further down knows to do nothing else.
+function handleCoffeeCounterClick(x, y) {
+  if (heldItem) {
+    placeHeldItem(x, y);
+    return true;
+  }
+
+  if (hitTestMachine(x, y)) {
+    if (machineState === "empty") {
+      machineState = "brewing";
+      setTimeout(() => {
+        if (machineState === "brewing") machineState = "full";
+      }, BREW_TIME_MS);
+    } else if (machineState === "full") {
+      const carafeItem = { kind: "carafe", coordinates_by_percentage: [...MACHINE_COORDS], scale: CARAFE_SCALE };
+      coffeeItems.push(carafeItem);
+      heldItem = carafeItem;
+      machineState = "nocarafe";
+    }
+    return true;
+  }
+
+  for (const item of coffeeItems) {
+    if (hitTestItem(item, x, y)) {
+      heldItem = item;
+      return true;
+    }
+  }
+
+  return false; // clicked empty counter space with nothing held — no-op
+}
+
+function drawCoffeeCounter() {
+  safeDrawImage(coffeeImage(machineImagePath()), MACHINE_COORDS, MACHINE_SCALE, "coffee machine");
+
+  coffeeItems.forEach((item) => {
+    if (item === heldItem) return; // drawn glued to the mouse instead, below
+    const { img, x, y, w, h } = coffeeItemRect(item);
+    if (!img.complete || img.naturalWidth === 0) return;
+    ctx.drawImage(img, x, y, w, h);
+
+    if (item.kind === "mug" && item.hasWhip && item.state !== "empty") {
+      const whipImg = coffeeImage("topping_output_whippedcream");
+      if (!whipImg.complete || whipImg.naturalWidth === 0) return;
+      const whipW = whipImg.width * item.scale;
+      const whipH = whipImg.height * item.scale;
+      ctx.drawImage(whipImg, x + w / 2 - whipW / 2, y - whipH * 0.3, whipW, whipH);
+    }
+  });
+
+  if (heldItem) {
+    const { img, w, h } = coffeeItemRect(heldItem);
+    if (img.complete && img.naturalWidth !== 0) {
+      ctx.drawImage(img, mouseX - w / 2, mouseY - h / 2, w, h);
+    }
+  }
+}
+
 // -------------------- DRAW LOOP --------------------
 
 function draw() {
@@ -418,6 +618,7 @@ function draw() {
 
       safeDrawImage(node.img, node.coordinates_by_percentage, node.scale, node.id);
       if (node.text) safeTry(`affirmation text: ${node.id}`, () => drawAffirmationText(node));
+      if (node.id === "coffeecounter") safeTry("coffee counter", drawCoffeeCounter);
 
       node.children.forEach((child) => {
         if (hidden.has(child.id) || !child.img) return;
@@ -442,11 +643,36 @@ canvas.addEventListener("mousemove", (e) => {
   mouseX = e.clientX - rect.left;
   mouseY = e.clientY - rect.top;
 
+  // The coffee counter has its own click handling below, so it gets its own
+  // (simpler) cursor rule too: always a pointer while it's open.
+  if (openPath[openPath.length - 1].id === "coffeecounter") {
+    canvas.style.cursor = "pointer";
+    return;
+  }
+
   const clickable = getClickableNodeAt(mouseX, mouseY);
   canvas.style.cursor = clickable ? "pointer" : "default";
 });
 
 canvas.addEventListener("mousedown", () => {
+  const topNode = openPath[openPath.length - 1];
+  if (topNode.id === "coffeecounter") {
+    const w = topNode.img.width * topNode.scale;
+    const h = topNode.img.height * topNode.scale;
+    const { x, y } = topLeftFor(topNode.coordinates_by_percentage, w, h);
+    const insideCounter = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h;
+
+    if (insideCounter) {
+      handleCoffeeCounterClick(mouseX, mouseY);
+      return;
+    }
+
+    // Clicking outside the counter while carrying something would normally
+    // close the popup — instead, require setting it down first so nothing
+    // gets stranded mid-task.
+    if (heldItem) return;
+  }
+
   const node = getClickableNodeAt(mouseX, mouseY);
   if (node) {
     if (node.id === "app_affirmations") {
