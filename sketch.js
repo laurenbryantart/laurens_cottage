@@ -8,19 +8,19 @@
 //               app_file folder instances) can reuse the same Image
 //   path        image file to draw, relative to the "images/" folder
 //               (defaults to that folder — no need to write the prefix)
-//   coordinates [x, y] absolute, relative to the ONE grid: the
-//               room_background image's own native-pixel grid. Every
-//               node uses this same coordinate system regardless of how
-//               deeply it's nested — never relative to another image.
+//   coordinates_by_percentage [x, y] — numbers like [20.3, 15.1], percentages
+//               (0-100) of the canvas's width and height. Every node uses this
+//               same coordinate system regardless of how deeply it's nested —
+//               never relative to another image. Points at the CENTER of
+//               the node's image, except [0, 0] which is treated as
+//               the image's top-left corner (used by room_background so it
+//               sits flush against the canvas edge).
 //   scale       absolute scale factor applied to the image's native size
 //   children    list of nodes nested "inside" this one (defaults to []).
 //               Clicking a node reveals its children automatically —
 //               there's no separate "opens" pointer. Every image is a
 //               popup: revealed children stay on screen alongside
 //               whatever was already open (see POPUP TREE below).
-//   show_grid   true to overlay the placement grid whenever the "g" key
-//               is toggled on — only room_background sets this; it's the
-//               one grid every coordinate above is defined against
 //   hide        list of node ids to hide from the screen while this node
 //               is showing (defaults to []) — e.g. hide: ["app_wizard"]
 
@@ -33,41 +33,41 @@ const IMAGES_FOLDER = "images/";
 
 let images = {
   room_background: {
-    id: "room_background", path: "main_room/room_background.png", coordinates: [0, 0], scale: 0.92, show_grid: true,
+    id: "room_background", path: "main_room/room_background.png", coordinates_by_percentage: [0, 0], scale: 0.92,
     children: [
-      { id: "bed", path: "main_room/bed.png", coordinates: [50, 50], scale: 0.414 },
-      { id: "pattern", path: "main_room/pattern.png", coordinates: [650, 50], scale: 0.46 },
-      { id: "calendar", path: "main_room/calendar.png", coordinates: [1150, 50], scale: 0.3588 },
-      { id: "flowers", path: "main_room/flowers.png", coordinates: [1112, 116], scale: 0.368 },
-      { id: "books", path: "main_room/books.png", coordinates: [300, 300], scale: 0.414 },
+      { id: "bed", path: "main_room/bed.png", coordinates_by_percentage: [11.8, 30.1], scale: 0.414 },
+      { id: "pattern", path: "main_room/pattern.png", coordinates_by_percentage: [650, 50], scale: 0.46 },
+      { id: "calendar", path: "main_room/calendar.png", coordinates_by_percentage: [1150, 50], scale: 0.3588 },
+      { id: "flowers", path: "main_room/flowers.png", coordinates_by_percentage: [92.7, 24.0], scale: 0.368 },
+      { id: "books", path: "main_room/books.png", coordinates_by_percentage: [300, 300], scale: 0.414 },
 
       {
-        id: "laptop", path: "main_room/laptop.png", coordinates: [500, 50], scale: 0.46,
+        id: "laptop", path: "main_room/laptop.png", coordinates_by_percentage: [43.3, 17.9], scale: 0.46,
         // ---- desktop popup + its icons, revealed by clicking the laptop ----
         children: [
           {
-            id: "desktop", path: "computer/desktop.png", coordinates: [150, 50], scale: 0.42,
+            id: "desktop", path: "computer/desktop.png", coordinates_by_percentage: [0, 0], scale: 0.42,
             children: [
-              { id: "app_bank", path: "computer/app_bank.png", coordinates: [550, 150], scale: 0.315 },
-              { id: "app_borders", path: "computer/app_borders.png", coordinates: [800, 150], scale: 0.315 },
-              { id: "app_camera", path: "computer/app_camera.png", coordinates: [250, 450], scale: 0.315 },
+              { id: "app_bank", path: "computer/app_bank.png", coordinates_by_percentage: [550, 150], scale: 0.315 },
+              { id: "app_borders", path: "computer/app_borders.png", coordinates_by_percentage: [800, 150], scale: 0.315 },
+              { id: "app_camera", path: "computer/app_camera.png", coordinates_by_percentage: [250, 450], scale: 0.315 },
 
               // three folder instances share the app_file.png art — same
               // `id`, so they still share one cached Image
-              { id: "app_file", path: "computer/app_file.png", coordinates: [250, 200], scale: 0.42 },
-              { id: "app_file", path: "computer/app_file.png", coordinates: [250, 300], scale: 0.42 },
-              { id: "app_file", path: "computer/app_file.png", coordinates: [250, 450], scale: 0.42 },
+              { id: "app_file", path: "computer/app_file.png", coordinates_by_percentage: [250, 200], scale: 0.42 },
+              { id: "app_file", path: "computer/app_file.png", coordinates_by_percentage: [250, 300], scale: 0.42 },
+              { id: "app_file", path: "computer/app_file.png", coordinates_by_percentage: [250, 450], scale: 0.42 },
 
-              { id: "app_wizard", path: "computer/app_wizard.png", coordinates: [800, 450], scale: 0.315 },
+              { id: "app_wizard", path: "computer/app_wizard.png", coordinates_by_percentage: [800, 450], scale: 0.315 },
 
               {
-                id: "app_affirmations", path: "computer/app_affirmations.png", coordinates: [500, 200], scale: 0.42,
+                id: "app_affirmations", path: "computer/app_affirmations.png", coordinates_by_percentage: [500, 200], scale: 0.42,
                 // `children[0]` below is only ever used as a template — clicking
                 // app_affirmations spawns a fresh clone of it at a random spot
                 // inside the desktop's bounds instead of pushing it as-is (see
                 // the mousedown handler)
                 children: [
-                  { id: "affirmations_popup", path: "computer/affirmations_popup.png", coordinates: [700, 300], scale: 0.4 },
+                  { id: "affirmations_popup", path: "computer/affirmations_popup.png", coordinates_by_percentage: [700, 300], scale: 0.4 },
                 ]
               },
             ]
@@ -75,25 +75,24 @@ let images = {
         ]
       },
 
-      { id: "teapot", path: "main_room/teapot.png", coordinates: [1200, 350], scale: 0.414 },
-      { id: "notes", path: "main_room/notes.png", coordinates: [1200, 300], scale: 0.368 },
-      { id: "paper", path: "main_room/paper.png", coordinates: [550, 450], scale: 0.46 },
-      { id: "drawing", path: "main_room/drawing.png", coordinates: [600, 150], scale: 0.368 },
-      { id: "laundry", path: "main_room/laundry.png", coordinates: [300, 200], scale: 0.414 },
+      { id: "teapot", path: "main_room/teapot.png", coordinates_by_percentage: [1200, 350], scale: 0.414 },
+      { id: "notes", path: "main_room/notes.png", coordinates_by_percentage: [1200, 300], scale: 0.368 },
+      { id: "paper", path: "main_room/paper.png", coordinates_by_percentage: [550, 450], scale: 0.46 },
+      { id: "drawing", path: "main_room/drawing.png", coordinates_by_percentage: [600, 150], scale: 0.368 },
+      { id: "laundry", path: "main_room/laundry.png", coordinates_by_percentage: [300, 200], scale: 0.414 },
 
       // no `children` below → not clickable
-      { id: "coffeemaker", path: "main_room/coffeemaker.png", coordinates: [850, 400], scale: 0.46 },
+      { id: "coffeemaker", path: "main_room/coffeemaker.png", coordinates_by_percentage: [850, 400], scale: 0.46 },
     ]
   }
 };
 
 const root = images.room_background;
 
-// Fill in defaults (children/show_grid/dark_background) and resolve the
-// image path, walking the whole tree.
+// Fill in defaults (children/hide) and resolve the image path, walking
+// the whole tree.
 function normalize(node) {
   if (node.children === undefined) node.children = [];
-  if (node.show_grid === undefined) node.show_grid = false;
   if (node.hide === undefined) node.hide = [];
   node.path = IMAGES_FOLDER + node.path;
   node.children.forEach(normalize);
@@ -170,11 +169,11 @@ canvas.height = 960;
 
 let mouseX = 0;
 let mouseY = 0;
-let showGrid = false;
 
-// When true, clicking the canvas copies the click's [x, y] (room_background's
-// native-pixel grid, same one drawNodeGrid labels) to the clipboard instead
-// of opening/closing popups — handy for reading off `coordinates` values.
+// When true, clicking the canvas copies the click's [x%, y%] (percentage of
+// the canvas's width/height, rounded to 1 decimal) to the clipboard instead
+// of opening/closing popups — handy for reading off
+// `coordinates_by_percentage` values.
 const CLICK_TO_SHOW_COORDINATES = true;
 
 // -------------------- ERROR SYSTEM --------------------
@@ -228,70 +227,33 @@ function loadImages(node, cache = {}) {
 
 loadImages(root);
 
+// -------------------- COORDINATES --------------------
+// `coordinates_by_percentage` normally points at the CENTER of a node's image. The one
+// exception is [0, 0] — used by room_background to sit flush in the
+// top-left corner — which is treated as the image's top-left corner
+// instead of being centered on the origin.
+
+function topLeftFor(coordinates_by_percentage, w, h) {
+  const [xPct, yPct] = coordinates_by_percentage;
+  if (xPct === 0 && yPct === 0) return { x: 0, y: 0 };
+  const cx = (xPct / 100) * canvas.width;
+  const cy = (yPct / 100) * canvas.height;
+  return { x: cx - w / 2, y: cy - h / 2 };
+}
+
 // -------------------- SAFE DRAW --------------------
 
-function safeDrawImage(img, x, y, scale, label) {
+function safeDrawImage(img, coordinates_by_percentage, scale, label) {
   try {
     if (!img) return;
     if (!img.complete || img.naturalWidth === 0) return;
 
-    ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+    const w = img.width * scale;
+    const h = img.height * scale;
+    const { x, y } = topLeftFor(coordinates_by_percentage, w, h);
+    ctx.drawImage(img, x, y, w, h);
   } catch (err) {
     pushError(`drawImage failed: ${label} (${err.message})`);
-  }
-}
-
-// -------------------- GRID --------------------
-// The one grid, drawn in room_background's own native image pixel space,
-// so labels can be read straight off the screen and pasted into any
-// node's `coordinates` — every node shares this same coordinate system
-// regardless of nesting depth.
-
-function drawNodeGrid(node, cellSize = 100) {
-  const img = node.img;
-  if (!img || !img.complete || img.naturalWidth === 0) return;
-
-  const [x0, y0] = node.coordinates;
-  const scale = node.scale;
-  const nativeW = img.naturalWidth;
-  const nativeH = img.naturalHeight;
-  const screenW = nativeW * scale;
-  const screenH = nativeH * scale;
-
-  ctx.strokeStyle = "black";
-  ctx.lineWidth = 1;
-
-  // Lines are spaced every `cellSize` native image pixels (0, 100, 200, ...)
-  // and only then converted to screen space, so grid squares always land on
-  // round 100s regardless of scale.
-  for (let nx = 0; nx <= nativeW; nx += cellSize) {
-    const x = x0 + nx * scale;
-    if (x < 0 || x > canvas.width) continue;
-    ctx.beginPath();
-    ctx.moveTo(x, Math.max(0, y0));
-    ctx.lineTo(x, Math.min(canvas.height, y0 + screenH));
-    ctx.stroke();
-  }
-
-  for (let ny = 0; ny <= nativeH; ny += cellSize) {
-    const y = y0 + ny * scale;
-    if (y < 0 || y > canvas.height) continue;
-    ctx.beginPath();
-    ctx.moveTo(Math.max(0, x0), y);
-    ctx.lineTo(Math.min(canvas.width, x0 + screenW), y);
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = "black";
-  ctx.font = "14px monospace";
-
-  for (let nx = 0; nx <= nativeW; nx += cellSize * 2) {
-    for (let ny = 0; ny <= nativeH; ny += cellSize * 2) {
-      const x = x0 + nx * scale;
-      const y = y0 + ny * scale;
-      if (x < 0 || x > canvas.width || y < 0 || y > canvas.height) continue;
-      ctx.fillText(`(${nx},${ny})`, x + 2, y + 12);
-    }
   }
 }
 
@@ -345,9 +307,9 @@ function spawnAffirmationPopup(template) {
   const w = template.img.width * template.scale;
   const h = template.img.height * template.scale;
 
-  const [dx, dy] = desktopNode.coordinates;
   const dw = desktopNode.img.width * desktopNode.scale;
   const dh = desktopNode.img.height * desktopNode.scale;
+  const { x: dx, y: dy } = topLeftFor(desktopNode.coordinates_by_percentage, dw, dh);
 
   // Keep spawned popups off the desktop's edges by a 5% margin on each side.
   const marginX = dw * 0.05;
@@ -358,14 +320,21 @@ function spawnAffirmationPopup(template) {
   const maxX = dx + dw - marginX - w;
   const maxY = dy + dh - marginY - h;
 
-  const x = minX + Math.random() * Math.max(0, maxX - minX);
-  const y = minY + Math.random() * Math.max(0, maxY - minY);
+  const topLeftX = minX + Math.random() * Math.max(0, maxX - minX);
+  const topLeftY = minY + Math.random() * Math.max(0, maxY - minY);
+
+  // coordinates_by_percentage store the CENTER, so convert the chosen top-left box back
+  // (and from pixels into a percentage of the canvas's width/height).
+  const x = topLeftX + w / 2;
+  const y = topLeftY + h / 2;
+  const xPct = (x / canvas.width) * 100;
+  const yPct = (y / canvas.height) * 100;
 
   return {
     id: template.id,
     path: template.path,
     img: template.img,
-    coordinates: [x, y],
+    coordinates_by_percentage: [xPct, yPct],
     scale: template.scale,
     children: [],
     hide: [],
@@ -396,9 +365,9 @@ function wrapText(text, maxWidth) {
 // Draws a popup's affirmation text, inset 30px from the popup's top and
 // bottom edges and centered (both horizontally and within that inset band).
 function drawAffirmationText(node) {
-  const [x, y] = node.coordinates;
   const w = node.img.width * node.scale;
   const h = node.img.height * node.scale;
+  const { x, y } = topLeftFor(node.coordinates_by_percentage, w, h);
   const margin = 30;
 
   ctx.save();
@@ -423,9 +392,9 @@ function getClickableNodeAt(x, y) {
     if (!node.img) continue;
     if (node.children.length === 0) continue;
 
-    const [nx, ny] = node.coordinates;
     const w = node.img.width * node.scale;
     const h = node.img.height * node.scale;
+    const { x: nx, y: ny } = topLeftFor(node.coordinates_by_percentage, w, h);
 
     const hit = x >= nx && x <= nx + w && y >= ny && y <= ny + h;
     if (hit) return node;
@@ -448,18 +417,14 @@ function draw() {
     openPath.forEach((node) => {
       if (hidden.has(node.id)) return;
 
-      safeDrawImage(node.img, node.coordinates[0], node.coordinates[1], node.scale, node.id);
+      safeDrawImage(node.img, node.coordinates_by_percentage, node.scale, node.id);
       if (node.text) safeTry(`affirmation text: ${node.id}`, () => drawAffirmationText(node));
 
       node.children.forEach((child) => {
         if (hidden.has(child.id) || !child.img) return;
-        safeDrawImage(child.img, child.coordinates[0], child.coordinates[1], child.scale, child.id);
+        safeDrawImage(child.img, child.coordinates_by_percentage, child.scale, child.id);
       });
     });
-
-    // The one grid is always the topmost layer, so coordinates can be
-    // read straight off the screen no matter what's currently open.
-    if (showGrid && root.show_grid) drawNodeGrid(root);
 
     drawErrors();
   } catch (err) {
@@ -484,7 +449,9 @@ canvas.addEventListener("mousemove", (e) => {
 
 canvas.addEventListener("mousedown", () => {
   if (CLICK_TO_SHOW_COORDINATES) {
-    const coords = `[${Math.round(mouseX)}, ${Math.round(mouseY)}]`;
+    const xPct = (mouseX / canvas.width) * 100;
+    const yPct = (mouseY / canvas.height) * 100;
+    const coords = `[${xPct.toFixed(1)}, ${yPct.toFixed(1)}]`;
     navigator.clipboard.writeText(coords).catch((err) => pushError(`Clipboard copy failed: ${err.message}`));
     return;
   }
@@ -502,17 +469,13 @@ canvas.addEventListener("mousedown", () => {
   const top = openPath[openPath.length - 1];
   if (!top.img) return;
 
-  const [x, y] = top.coordinates;
   const w = top.img.width * top.scale;
   const h = top.img.height * top.scale;
+  const { x, y } = topLeftFor(top.coordinates_by_percentage, w, h);
 
   const inside =
     mouseX >= x && mouseX <= x + w &&
     mouseY >= y && mouseY <= y + h;
 
   if (!inside) closePopup(); // go back one level in the popup chain
-});
-
-window.addEventListener("keydown", (e) => {
-  if (e.key === "g") showGrid = !showGrid;
 });
