@@ -38,7 +38,7 @@ let images = {
       { id: "bed", path: "main_room/bed.png", coordinates: [50, 50], scale: 0.414 },
       { id: "pattern", path: "main_room/pattern.png", coordinates: [650, 50], scale: 0.46 },
       { id: "calendar", path: "main_room/calendar.png", coordinates: [1150, 50], scale: 0.3588 },
-      { id: "flowers", path: "main_room/flowers.png", coordinates: [1200, 150], scale: 0.368 },
+      { id: "flowers", path: "main_room/flowers.png", coordinates: [1112, 116], scale: 0.368 },
       { id: "books", path: "main_room/books.png", coordinates: [300, 300], scale: 0.414 },
 
       {
@@ -171,6 +171,11 @@ canvas.height = 960;
 let mouseX = 0;
 let mouseY = 0;
 let showGrid = false;
+
+// When true, clicking the canvas copies the click's [x, y] (room_background's
+// native-pixel grid, same one drawNodeGrid labels) to the clipboard instead
+// of opening/closing popups — handy for reading off `coordinates` values.
+const CLICK_TO_SHOW_COORDINATES = true;
 
 // -------------------- ERROR SYSTEM --------------------
 
@@ -478,6 +483,12 @@ canvas.addEventListener("mousemove", (e) => {
 });
 
 canvas.addEventListener("mousedown", () => {
+  if (CLICK_TO_SHOW_COORDINATES) {
+    const coords = `[${Math.round(mouseX)}, ${Math.round(mouseY)}]`;
+    navigator.clipboard.writeText(coords).catch((err) => pushError(`Clipboard copy failed: ${err.message}`));
+    return;
+  }
+
   const node = getClickableNodeAt(mouseX, mouseY);
   if (node) {
     if (node.id === "app_affirmations") {
