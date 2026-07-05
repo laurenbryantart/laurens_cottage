@@ -1,47 +1,43 @@
-
 const affirmations = [
   "I am loved",
   "I am great",
   "hello"
 ];
-const IMAGES_FOLDER = "images/";
 
 const APP_SIZE = 0.5;
 
 let images = {
   room_background: {
-    id: "room_background", path: "main_room/room_background.png", coordinates_by_percentage: [0, 0], scale: 0.92,
+    path: "main_room/room_background.png", coordinates_by_percentage: [0, 0], scale: 0.92,
     children: [
-      { id: "bed", path: "main_room/bed.png", coordinates_by_percentage: [11.8, 30.1], scale: 0.414 },
-      { id: "pattern", path: "main_room/pattern.png", coordinates_by_percentage: [50.1, 8.5], scale: 0.46 },
-      { id: "calendar", path: "main_room/calendar.png", coordinates_by_percentage: [83.3, 8.1], scale: 0.3588 },
-      { id: "flowers", path: "main_room/flowers.png", coordinates_by_percentage: [91.9, 25.9], scale: 0.368 },
-      { id: "books", path: "main_room/books.png", coordinates_by_percentage: [32.2, 40.6], scale: 0.414 },
+      { path: "main_room/bed.png", coordinates_by_percentage: [11.8, 30.1], scale: 0.414 },
+      { path: "main_room/pattern.png", coordinates_by_percentage: [50.1, 8.5], scale: 0.46 },
+      { path: "main_room/calendar.png", coordinates_by_percentage: [83.3, 8.1], scale: 0.3588 },
+      { path: "main_room/flowers.png", coordinates_by_percentage: [91.9, 25.9], scale: 0.368 },
+      { path: "main_room/books.png", coordinates_by_percentage: [32.2, 40.6], scale: 0.414 },
 
       {
-        id: "laptop", path: "main_room/laptop.png", coordinates_by_percentage: [44.4, 16.3], scale: 0.46,
-        // ---- desktop popup + its icons, revealed by clicking the laptop ----
+        path: "main_room/laptop.png", coordinates_by_percentage: [44.4, 16.3], scale: 0.46,
         children: [
           {
-            id: "desktop", path: "computer/desktop.png", coordinates_by_percentage: [50, 50], scale: 0.42,
+            path: "computer/desktop.png", coordinates_by_percentage: [50, 50], scale: 0.42,
             do_dark_background: true,
             children: [
-              { id: "app_bank", path: "computer/app_bank.png", coordinates_by_percentage: [48.4, 30.0], scale: APP_SIZE },
-              { id: "app_borders", path: "computer/app_borders.png", coordinates_by_percentage: [65.7, 55.7], scale: APP_SIZE },
-              { id: "app_camera", path: "computer/app_camera.png", coordinates_by_percentage: [66.8, 29.7], scale: APP_SIZE },
-              { id: "app_wizard", path: "computer/app_wizard.png", coordinates_by_percentage: [53.2, 48.5], scale: APP_SIZE },
+              { path: "computer/app_bank.png", coordinates_by_percentage: [48.4, 30.0], scale: APP_SIZE },
+              { path: "computer/app_borders.png", coordinates_by_percentage: [65.7, 55.7], scale: APP_SIZE },
+              { path: "computer/app_camera.png", coordinates_by_percentage: [66.8, 29.7], scale: APP_SIZE },
+              { path: "computer/app_wizard.png", coordinates_by_percentage: [53.2, 48.5], scale: APP_SIZE },
+              // app_file.png is reused for multiple items, so its id must be given explicitly to avoid duplicates.
+              { id: "app_file1", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 30.2], scale: 0.42 },
+              { id: "app_file2", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 45.2], scale: 0.42 },
+              { id: "app_file3", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 60.2], scale: 0.42 }, 
 
-              // three folder instances share the app_file.png art — same
-              // `id`, so they still share one cached Image
-              { id: "app_file", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 30.2], scale: 0.42 },
-              { id: "app_file", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 45.2], scale: 0.42 },
-              { id: "app_file", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 60.2], scale: 0.42 },
+              { path: "computer/alert_compromised_wizard.png", coordinates_by_percentage: [53.2, 48.5], scale: APP_SIZE },
 
-              
               {
-                id: "app_affirmations", path: "computer/app_affirmations.png", coordinates_by_percentage: [35.5, 30.4], scale: 0.42,
+                path: "computer/app_affirmations.png", coordinates_by_percentage: [35.5, 30.4], scale: 0.42,
                 children: [
-                  { id: "affirmations_popup", path: "computer/affirmations_popup.png", coordinates_by_percentage: [10, 10], scale: 0.4 },
+                  { path: "computer/affirmations_popup.png", coordinates_by_percentage: [10, 10], scale: 0.4 },
                 ]
               },
             ]
@@ -49,23 +45,33 @@ let images = {
         ]
       },
 
-      { id: "teapot", path: "main_room/teapot.png", coordinates_by_percentage: [91.5, 42.8], scale: 0.414 },
-      { id: "notes", path: "main_room/notes.png", coordinates_by_percentage: [92.7, 34.5], scale: 0.36 },
-      { id: "paper", path: "main_room/paper.png", coordinates_by_percentage: [34.0, 70.3], scale: 0.46 },
-      { id: "drawing", path: "main_room/drawing.png", coordinates_by_percentage: [52.2, 28.5], scale: 0.36 },
-      { id: "laundry", path: "main_room/laundry.png", coordinates_by_percentage: [26.2, 32.8], scale: 0.41 },
+      { path: "main_room/teapot.png", coordinates_by_percentage: [91.5, 42.8], scale: 0.414 },
+      { path: "main_room/notes.png", coordinates_by_percentage: [92.7, 34.5], scale: 0.36 },
+      { path: "main_room/paper.png", coordinates_by_percentage: [34.0, 70.3], scale: 0.46 },
+      { path: "main_room/drawing.png", coordinates_by_percentage: [52.2, 28.5], scale: 0.36 },
+      { path: "main_room/laundry.png", coordinates_by_percentage: [26.2, 32.8], scale: 0.41 },
 
       // no `children` below → not clickable
-      { id: "coffeemaker", path: "main_room/coffeemaker.png", coordinates_by_percentage: [83.5, 18.7], scale: 0.46 },
+      { path: "main_room/coffeemaker.png", coordinates_by_percentage: [83.5, 18.7], scale: 0.46 },
     ]
   }
 };
 
 const root = images.room_background;
 
-// Fill in defaults (children/hide) and resolve the image path, walking
+// A node's id defaults to its file name (without extension). Nodes that
+// reuse the same file (e.g. the app_file popups) must set `id` explicitly
+// to avoid colliding.
+function idFromPath(path) {
+  const filename = path.split("/").pop();
+  return filename.replace(/\.[^.]+$/, "");
+}
+
+// Fill in defaults (id/children/hide) and resolve the image path, walking
 // the whole tree.
+const IMAGES_FOLDER = "images/";
 function normalize(node) {
+  if (node.id === undefined) node.id = idFromPath(node.path);
   if (node.children === undefined) node.children = [];
   if (node.hide === undefined) node.hide = [];
   if (node.do_dark_background === undefined) node.do_dark_background = false;
@@ -103,9 +109,9 @@ handwritingFont.load()
 // popped. Clicking a node with children pushes those children onto the
 // chain (e.g. clicking the laptop reveals the desktop popup). Every
 // layer opened so far stays visible — opening a new popup does not hide
-// the ones already open — so `visibleChildren()` is the union of every
-// layer's children, not just the most recent one. A node's `hide` list
-// removes specific ids from that union while the node is showing.
+// the ones already open — so every layer's children stay part of the scene,
+// not just the most recent one. A node's `hide` list removes specific ids
+// from that set while the node is showing.
 // Clicking outside the most-recently-opened popup's bounds pops back one
 // level — same rule at every depth.
 
@@ -121,13 +127,6 @@ function collectHiddenIds() {
   });
 
   return hidden;
-}
-
-function visibleChildren() {
-  const hidden = collectHiddenIds();
-  const nodes = [];
-  openPath.forEach((node) => nodes.push(...node.children));
-  return nodes.filter((node) => !hidden.has(node.id));
 }
 
 function closePopup() {
@@ -362,18 +361,35 @@ function drawAffirmationText(node) {
   ctx.restore();
 }
 
+function hitTest(node, x, y) {
+  const w = node.img.width * node.scale;
+  const h = node.img.height * node.scale;
+  const { x: nx, y: ny } = topLeftFor(node.coordinates_by_percentage, w, h);
+  return x >= nx && x <= nx + w && y >= ny && y <= ny + h;
+}
+
+// Walk the popup chain from the topmost layer down. Each layer's own image
+// (or, for a `do_dark_background` layer, its full-canvas dim overlay) covers
+// whatever is beneath it — so a layer blocks lower layers from being hit
+// once the click misses all of that layer's own clickable children (e.g. the
+// laptop must stop being clickable once the desktop is open on top of it).
 function getClickableNodeAt(x, y) {
-  for (const node of visibleChildren()) {
-    if (!node.img) continue;
-    if (node.children.length === 0) continue;
+  const hidden = collectHiddenIds();
 
-    const w = node.img.width * node.scale;
-    const h = node.img.height * node.scale;
-    const { x: nx, y: ny } = topLeftFor(node.coordinates_by_percentage, w, h);
+  for (let i = openPath.length - 1; i >= 0; i--) {
+    const node = openPath[i];
+    const children = node.children.filter((child) => !hidden.has(child.id));
 
-    const hit = x >= nx && x <= nx + w && y >= ny && y <= ny + h;
-    if (hit) return node;
+    for (let j = children.length - 1; j >= 0; j--) {
+      const child = children[j];
+      if (!child.img || child.children.length === 0) continue;
+      if (hitTest(child, x, y)) return child;
+    }
+
+    if (node.do_dark_background) return null;
+    if (i > 0 && node.img && hitTest(node, x, y)) return null;
   }
+
   return null;
 }
 
@@ -440,6 +456,16 @@ canvas.addEventListener("mousedown", () => {
     return;
   }
 
+  // Debug helper: on any page/popup depth, clicking empty space copies the
+  // click's [x%, y%] instead of the normal close-popup navigation.
+  if (CLICK_TO_SHOW_COORDINATES) {
+    const xPct = (mouseX / canvas.width) * 100;
+    const yPct = (mouseY / canvas.height) * 100;
+    const coords = `[${xPct.toFixed(1)}, ${yPct.toFixed(1)}]`;
+    navigator.clipboard.writeText(coords).catch((err) => pushError(`Clipboard copy failed: ${err.message}`));
+    return;
+  }
+
   const top = openPath[openPath.length - 1];
   const w = top.img ? top.img.width * top.scale : 0;
   const h = top.img ? top.img.height * top.scale : 0;
@@ -450,17 +476,5 @@ canvas.addEventListener("mousedown", () => {
     mouseX >= x && mouseX <= x + w &&
     mouseY >= y && mouseY <= y + h;
 
-  if (openPath.length > 1) {
-    if (!inside) closePopup(); // go back one level in the popup chain
-    return;
-  }
-
-  // Only the base room is open — nothing to close, so fall back to the
-  // coordinate-copy debug helper.
-  if (CLICK_TO_SHOW_COORDINATES) {
-    const xPct = (mouseX / canvas.width) * 100;
-    const yPct = (mouseY / canvas.height) * 100;
-    const coords = `[${xPct.toFixed(1)}, ${yPct.toFixed(1)}]`;
-    navigator.clipboard.writeText(coords).catch((err) => pushError(`Clipboard copy failed: ${err.message}`));
-  }
+  if (openPath.length > 1 && !inside) closePopup(); // go back one level in the popup chain
 });
