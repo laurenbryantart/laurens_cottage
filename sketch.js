@@ -495,21 +495,47 @@ const BREW_TIME_MS = 2500;
 
 // Milk and creamer both just move a mug from "coffee" to "coffee_milk" —
 // two different toppings with the same effect. Whip and cinnamon both sit
-// as a dusting/dollop drawn on top of the mug — each with its own overlay
-// image, size, and position offset (in canvas pixels from the mug's own
-// center/top) so they can be nudged independently without touching the
-// mug's own coordinates above. Nudge `scale`/`offsetX`/`offsetY` directly
-// to fix the whipped cream (or cinnamon) placement.
+// as a dusting/dollop drawn on top of the mug. Since the mugs' rims are all
+// different shapes/sizes, each topping's placement is tuned per mug type
+// below (rather than needing a hand-drawn combo image for every mug) —
+// `default` is used for any mug type that doesn't have its own entry.
+// Nudge a mug's `scale`/`offsetX`/`offsetY` (canvas pixels, from the mug's
+// own center/top) directly to fix that mug's whipped cream or cinnamon.
 const MILK_LIKE = ["milk", "creamer"];
 const TOPPING_LIKE = ["whip", "cinnamon"];
 const TOPPING_STYLE = {
-  whip: { image: "topping_output_whippedcream", scale: 0.3, offsetX: 0, offsetY: -40 },
-  cinnamon: { image: "topping_output_cinnamon", scale: 0.5, offsetX: 0, offsetY: -15 },
+  whip: {
+    image: "topping_output_whippedcream",
+    default: { scale: 0.26, offsetX: 0, offsetY: -45 },
+    papercup: { scale: 0.26, offsetX: 0, offsetY: -45 },
+    greenmug: { scale: 0.26, offsetX: 0, offsetY: -45 },
+    redmug: { scale: 0.26, offsetX: 0, offsetY: -45 },
+    wavymug: { scale: 0.26, offsetX: 0, offsetY: -45 },
+    yellowmug: { scale: 0.26, offsetX: 0, offsetY: -45 },
+  },
+  cinnamon: {
+    image: "topping_output_cinnamon",
+    default: { scale: 0.3, offsetX: 0, offsetY: -9 },
+    papercup: { scale: 0.3, offsetX: 0, offsetY: -9 },
+    greenmug: { scale: 0.3, offsetX: 0, offsetY: -9 },
+    redmug: { scale: 0.3, offsetX: 0, offsetY: -9 },
+    wavymug: { scale: 0.3, offsetX: 0, offsetY: -9 },
+    yellowmug: { scale: 0.3, offsetX: 0, offsetY: -9 },
+  },
 };
 
 // While held, milk/creamer/whip/cinnamon tilt like they're being poured.
 // Positive = tips clockwise; flip the sign if it looks backwards.
 const TOPPING_TILT_DEGREES = 25;
+
+// Whichever mug you last poured coffee into, added a topping to, or picked
+// up while it already had coffee in it — that mug then follows the cursor
+// everywhere outside the coffee counter itself, like you're carrying it
+// around the room. CARRIED_MUG_SCALE controls how big it looks; the offset
+// keeps it from sitting directly under (and blocking) the cursor.
+let lastCoffeeMug = null;
+const CARRIED_MUG_SCALE = 0.15;
+const CARRIED_MUG_OFFSET = { x: 26, y: -34 };
 
 // Whichever coffeeItems entry is currently stuck to the mouse. Null when
 // nothing is held.
@@ -576,6 +602,7 @@ function placeHeldItem(x, y) {
       coffeeItems = coffeeItems.filter((i) => i !== item);
       machineState = "empty";
       heldItem = null;
+      lastCoffeeMug = targetMug;
     }
     return; // no valid mug: stays held, nothing more to do
   }
@@ -590,6 +617,7 @@ function placeHeldItem(x, y) {
       targetMug.topping = item.kind;
       applied = true;
     }
+    if (applied) lastCoffeeMug = targetMug;
   }
 
   item.coordinates_by_percentage = applied ? item.home : pixelsToPercentage(x, y);
@@ -622,6 +650,9 @@ function handleCoffeeCounterClick(x, y) {
   for (const item of coffeeItems) {
     if (hitTestItem(item, x, y)) {
       heldItem = item;
+      // Picking up a mug that already has coffee in it counts as
+      // "interacting with your coffee" too, not just pouring/topping it.
+      if (item.kind === "mug" && item.state !== "empty") lastCoffeeMug = item;
       return true;
     }
   }
@@ -630,22 +661,45 @@ function handleCoffeeCounterClick(x, y) {
 }
 
 // Draws a mug's whip/cinnamon dusting on top of it, using that topping's
-// own independent size + offset (not the mug's scale) — (x, y, w, h) is
-// wherever the mug itself was just drawn, held or resting.
-function drawMugTopping(mug, x, y, w, h) {
+// own independent size + offset for this specific mug type (not the mug's
+// own scale) — (x, y, w, h) is wherever the mug itself was just drawn, held
+// or resting. `sizeRatio` shrinks the topping to match a mug drawn smaller
+// than its usual counter size (see drawCarriedMug).
+function drawMugTopping(mug, x, y, w, h, sizeRatio = 1) {
   if (!mug.topping) return;
-  const style = TOPPING_STYLE[mug.topping];
-  const img = coffeeImage(style.image);
+  const topping = TOPPING_STYLE[mug.topping];
+  const style = topping[mug.mugType] || topping.default;
+  const img = coffeeImage(topping.image);
   if (!img.complete || img.naturalWidth === 0) return;
-  const toppingW = img.width * style.scale;
-  const toppingH = img.height * style.scale;
+  const toppingW = img.width * style.scale * sizeRatio;
+  const toppingH = img.height * style.scale * sizeRatio;
   ctx.drawImage(
     img,
-    x + w / 2 - toppingW / 2 + style.offsetX,
-    y + style.offsetY,
+    x + w / 2 - toppingW / 2 + style.offsetX * sizeRatio,
+    y + style.offsetY * sizeRatio,
     toppingW,
     toppingH
   );
+}
+
+// The last mug you interacted with (see lastCoffeeMug above) follows the
+// cursor everywhere except while the coffee counter itself is open — there,
+// it's already visible sitting on the counter, so drawing it twice would
+// just look broken.
+function drawCarriedMug() {
+  if (!lastCoffeeMug) return;
+  if (openPath[openPath.length - 1].id === "coffeecounter") return;
+
+  const img = coffeeImage(itemImagePath(lastCoffeeMug));
+  if (!img.complete || img.naturalWidth === 0) return;
+
+  const w = img.width * CARRIED_MUG_SCALE;
+  const h = img.height * CARRIED_MUG_SCALE;
+  const x = mouseX + CARRIED_MUG_OFFSET.x;
+  const y = mouseY + CARRIED_MUG_OFFSET.y;
+
+  ctx.drawImage(img, x, y, w, h);
+  drawMugTopping(lastCoffeeMug, x, y, w, h, CARRIED_MUG_SCALE / lastCoffeeMug.scale);
 }
 
 function drawCoffeeCounter() {
@@ -709,6 +763,7 @@ function draw() {
       });
     });
 
+    safeTry("carried mug", drawCarriedMug);
     drawErrors();
   } catch (err) {
     pushError(`FATAL DRAW LOOP: ${err.message}`);
