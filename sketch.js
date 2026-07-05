@@ -519,6 +519,35 @@ coffeeItems.forEach((item) => {
   if (item.kind !== "mug") item.home = item.coordinates_by_percentage;
 });
 
+// Mugs and toppings can only be set down on the counter's actual top
+// surface, not anywhere in the popup — otherwise a mug could end up
+// floating over the backsplash. Bounds are the 4 corners Lauren measured
+// with the coordinate-copy trick (they were slightly inconsistent corner to
+// corner, so this is the more generous reading of each side rather than
+// the tightest one).
+const COUNTER_TOP_BOUNDS = {
+  xMin: (24.9 / 100) * canvas.width,
+  xMax: (99.9 / 100) * canvas.width,
+  yMin: (30.7 / 100) * canvas.height,
+  yMax: (85.7 / 100) * canvas.height,
+};
+// Allows the placement as long as the item's own footprint (given its
+// center at x, y) overlaps the counter top at all — not just its exact
+// center point. That way a mug resting right at the edge (its bottom
+// touching the top boundary, or its side touching the left boundary) can
+// still be set down, instead of being rejected just because its center
+// happens to fall outside the line.
+function overlapsCounterTop(x, y, w, h) {
+  const left = x - w / 2;
+  const right = x + w / 2;
+  const top = y - h / 2;
+  const bottom = y + h / 2;
+  return (
+    right >= COUNTER_TOP_BOUNDS.xMin && left <= COUNTER_TOP_BOUNDS.xMax &&
+    bottom >= COUNTER_TOP_BOUNDS.yMin && top <= COUNTER_TOP_BOUNDS.yMax
+  );
+}
+
 // "empty" -> waiting to brew. "brewing" -> mid-brew, machine not clickable.
 // "full" -> ready to pick up and pour. "nocarafe" -> the carafe is out and
 // about (held) so the machine itself does nothing until that carafe gets
@@ -567,8 +596,10 @@ const TOPPING_STYLE = {
 };
 
 // While held, milk/creamer/whip/cinnamon tilt like they're being poured.
-// Positive = tips clockwise; flip the sign if it looks backwards.
-const TOPPING_TILT_DEGREES = 25;
+// Positive = tips clockwise, negative = tips counter-clockwise — creamer and
+// cinnamon are drawn facing the opposite way from milk and whip, so they
+// need the opposite sign to still look like they're pouring correctly.
+const TOPPING_TILT_DEGREES = { milk: 25, creamer: -25, whip: 25, cinnamon: -25 };
 
 // Whichever mug you last poured coffee into, added a topping to, or picked
 // up while it already had coffee in it — that mug then follows the cursor
@@ -627,10 +658,10 @@ function pixelsToPercentage(x, y) {
 // state, the effect (pour coffee / add milk / add whip) applies — and on
 // success, milk/creamer/whip/cinnamon teleport back to their own starting
 // spot on the counter rather than staying where they were used. Missing the
-// target still just drops them exactly where you clicked (no snapping back)
-// — the carafe is the one exception: it's not allowed to be set down loose,
-// so an invalid click just leaves it stuck to the mouse (see
-// handleCoffeeCounterClick).
+// target still drops them exactly where you clicked (no snapping back) as
+// long as that's actually on the counter top — clicking off the counter
+// (or holding the carafe with no valid mug) just leaves the item stuck to
+// the mouse instead.
 function placeHeldItem(x, y) {
   const item = heldItem;
 
@@ -662,7 +693,18 @@ function placeHeldItem(x, y) {
     if (applied) lastCoffeeMug = targetMug;
   }
 
-  item.coordinates_by_percentage = applied ? item.home : pixelsToPercentage(x, y);
+  if (applied) {
+    item.coordinates_by_percentage = item.home;
+    heldItem = null;
+    return;
+  }
+
+  const img = coffeeImage(itemImagePath(item));
+  const w = img.width * item.scale;
+  const h = img.height * item.scale;
+  if (!overlapsCounterTop(x, y, w, h)) return; // off the counter top: stays held
+
+  item.coordinates_by_percentage = pixelsToPercentage(x, y);
   heldItem = null;
 }
 
@@ -763,7 +805,7 @@ function drawCoffeeCounter() {
         // Tilted like it's being poured, pivoting around its own center.
         ctx.save();
         ctx.translate(mouseX, mouseY);
-        ctx.rotate((TOPPING_TILT_DEGREES * Math.PI) / 180);
+        ctx.rotate((TOPPING_TILT_DEGREES[heldItem.kind] * Math.PI) / 180);
         ctx.drawImage(img, -w / 2, -h / 2, w, h);
         ctx.restore();
       } else {
@@ -842,6 +884,18 @@ canvas.addEventListener("mousemove", (e) => {
   canvas.style.cursor = clickable ? "pointer" : "default";
 });
 
+// Debug helper: copies the click's [x%, y%] (percentage of the whole
+// canvas — the same system every coordinates_by_percentage in this file
+// uses, whether it's a room object or something inside a popup) to the
+// clipboard, so it can be pasted straight into the code.
+function copyClickCoordinates(x, y) {
+  if (!CLICK_TO_SHOW_COORDINATES) return;
+  const xPct = (x / canvas.width) * 100;
+  const yPct = (y / canvas.height) * 100;
+  const coords = `[${xPct.toFixed(1)}, ${yPct.toFixed(1)}]`;
+  navigator.clipboard.writeText(coords).catch((err) => pushError(`Clipboard copy failed: ${err.message}`));
+}
+
 canvas.addEventListener("mousedown", () => {
   const topNode = openPath[openPath.length - 1];
   if (topNode.id === "coffeecounter") {
@@ -851,6 +905,10 @@ canvas.addEventListener("mousedown", () => {
     const insideCounter = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h;
 
     if (insideCounter) {
+      // Copies coordinates in addition to (not instead of) the normal
+      // pick-up/place/brew handling below — same "always copy" rule as
+      // everywhere else, so you can still read off counter positions.
+      copyClickCoordinates(mouseX, mouseY);
       handleCoffeeCounterClick(mouseX, mouseY);
       return;
     }
@@ -874,12 +932,7 @@ canvas.addEventListener("mousedown", () => {
   // Debug helper: on any page/popup depth, clicking on non-clickable space
   // also copies the click's [x%, y%] to clipboard, in addition to (not
   // instead of) the normal close-popup navigation below.
-  if (CLICK_TO_SHOW_COORDINATES) {
-    const xPct = (mouseX / canvas.width) * 100;
-    const yPct = (mouseY / canvas.height) * 100;
-    const coords = `[${xPct.toFixed(1)}, ${yPct.toFixed(1)}]`;
-    navigator.clipboard.writeText(coords).catch((err) => pushError(`Clipboard copy failed: ${err.message}`));
-  }
+  copyClickCoordinates(mouseX, mouseY);
 
   const top = openPath[openPath.length - 1];
   const w = top.img ? top.img.width * top.scale : 0;
