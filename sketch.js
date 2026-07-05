@@ -24,6 +24,11 @@
 //   hide        list of node ids to hide from the screen while this node
 //               is showing (defaults to []) — e.g. hide: ["app_wizard"]
 
+
+const affirmations = [
+  "I am loved",
+  "I am great"
+];
 const IMAGES_FOLDER = "images/";
 
 let images = {
