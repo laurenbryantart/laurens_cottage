@@ -10,8 +10,8 @@ const affirmations = [
   "I always eat my feelings",
   "One day I will make freinds",
   "I need to chill out",
-  "I am flying. I am ascending."
-  "Fuuuuuuuuuuuuuuuuuuuck",
+  "I am flying. I am ascending.",
+  "Fuuuuuuuuuuuuuuuuuck",
   "I am really good at drawing",
   "Drawing is the only thing I am good at",
   "I am one",
@@ -524,6 +524,9 @@ coffeeItems.forEach((item) => {
 // about (held) so the machine itself does nothing until that carafe gets
 // poured into a mug and disappears.
 let machineState = "empty";
+// The machine shakes to show a first-time visitor where to click — once
+// they've clicked it (see handleCoffeeCounterClick), it stops for good.
+let machineDiscovered = false;
 // One shared position + size for the machine, however it currently looks —
 // change these two and every state (empty/brewing/full/nocarafe) moves and
 // resizes together, since they all share this same footprint.
@@ -672,6 +675,7 @@ function handleCoffeeCounterClick(x, y) {
   }
 
   if (hitTestMachine(x, y)) {
+    machineDiscovered = true; // stop shaking now that the user found it
     if (machineState === "empty") {
       machineState = "brewing";
       setTimeout(() => {
@@ -742,7 +746,7 @@ function drawCarriedMug() {
 }
 
 function drawCoffeeCounter() {
-  safeDrawImage(coffeeImage(machineImagePath()), MACHINE_COORDS, MACHINE_SCALE, "coffee machine", shakeAngleRadians("coffee_machine"));
+  safeDrawImage(coffeeImage(machineImagePath()), MACHINE_COORDS, MACHINE_SCALE, "coffee machine", machineDiscovered ? 0 : shakeAngleRadians("coffee_machine"));
 
   coffeeItems.forEach((item) => {
     if (item === heldItem) return; // drawn glued to the mouse instead, below
@@ -785,6 +789,13 @@ function draw() {
     openPath.forEach((node) => {
       if (hidden.has(node.id)) return;
 
+      // Only the topmost/currently-open layer is allowed to shake — e.g.
+      // once the laptop's desktop popup is open, the laptop itself (still
+      // drawn in the background, as room_background's child) should hold
+      // still; only things belonging to the desktop (the active layer)
+      // still shake.
+      const isActiveLayer = node === openPath[openPath.length - 1];
+
       // Dims everything drawn so far (the layers behind this node), leaving
       // this node and its own children — drawn next — at full brightness.
       if (node.do_dark_background) {
@@ -792,13 +803,13 @@ function draw() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      safeDrawImage(node.img, node.coordinates_by_percentage, node.scale, node.id, node.shake ? shakeAngleRadians(node.id) : 0);
+      safeDrawImage(node.img, node.coordinates_by_percentage, node.scale, node.id, node.shake && isActiveLayer ? shakeAngleRadians(node.id) : 0);
       if (node.text) safeTry(`affirmation text: ${node.id}`, () => drawAffirmationText(node));
       if (node.id === "coffeecounter") safeTry("coffee counter", drawCoffeeCounter);
 
       node.children.forEach((child) => {
         if (hidden.has(child.id) || !child.img) return;
-        safeDrawImage(child.img, child.coordinates_by_percentage, child.scale, child.id, child.shake ? shakeAngleRadians(child.id) : 0);
+        safeDrawImage(child.img, child.coordinates_by_percentage, child.scale, child.id, child.shake && isActiveLayer ? shakeAngleRadians(child.id) : 0);
       });
     });
 
