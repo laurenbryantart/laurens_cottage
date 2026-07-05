@@ -56,15 +56,15 @@ let images = {
       { path: "main_room/coffeemaker.png", coordinates_by_percentage: [83.5, 18.7], scale: 0.46, children: [
         {
           // The coffee minigame code below keys off this id — the file is
-          // "newcoffeecounteer.png" so it needs to be set explicitly rather
+          // "newnewcounter.png" so it needs to be set explicitly rather
           // than relying on the filename-derived default.
           id: "coffeecounter",
-          path: "coffeemaker/newcoffeecounteer.png",
+          path: "coffeemaker/newnewcounter.png",
           // Positioned so its right and bottom edges sit flush against the
           // canvas's right and bottom edges (center = canvas edge minus half
           // the scaled image size), rather than centered like other popups.
-          // Image is 4137x3067 native; scale 0.3 -> 1241x920 on the canvas.
-          coordinates_by_percentage: [57.25, 52.08], scale: 0.3,
+          // Image is 4461x3326 native; scale 0.277 -> 1236x921 on the canvas.
+          coordinates_by_percentage: [57.45, 52.02], scale: 0.277,
           do_dark_background: true,
         },
       ] },
@@ -509,7 +509,7 @@ const TOPPING_STYLE = {
     default: { scale: 0.26, offsetX: 0, offsetY: -45 },
     papercup: { scale: 0.26, offsetX: 0, offsetY: -45 },
     greenmug: { scale: 0.26, offsetX: 0, offsetY: -45 },
-    redmug: { scale: 0.26, offsetX: 0, offsetY: -45 },
+    redmug: { scale: 0.29, offsetX: -17, offsetY: -28 },
     wavymug: { scale: 0.26, offsetX: 0, offsetY: -45 },
     yellowmug: { scale: 0.26, offsetX: 0, offsetY: -45 },
   },
