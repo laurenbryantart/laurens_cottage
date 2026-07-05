@@ -32,7 +32,7 @@ let images = {
               { id: "app_file2", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 45.2], scale: 0.42 },
               { id: "app_file3", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 60.2], scale: 0.42 }, 
 
-              { path: "computer/alert_compromised_wizard.png", coordinates_by_percentage: [53.2, 48.5], scale: APP_SIZE },
+              { path: "computer/alert_compromised_wizard.png", coordinates_by_percentage: [33.9, 68.0], scale: APP_SIZE },
 
               {
                 path: "computer/app_affirmations.png", coordinates_by_percentage: [35.5, 30.4], scale: 0.42,
@@ -51,8 +51,9 @@ let images = {
       { path: "main_room/drawing.png", coordinates_by_percentage: [52.2, 28.5], scale: 0.36 },
       { path: "main_room/laundry.png", coordinates_by_percentage: [26.2, 32.8], scale: 0.41 },
 
-      // no `children` below → not clickable
-      { path: "main_room/coffeemaker.png", coordinates_by_percentage: [83.5, 18.7], scale: 0.46 },
+      { path: "main_room/coffeemaker.png", coordinates_by_percentage: [83.5, 18.7], scale: 0.46, children: [
+        { path: "main_room/coffeemaker.png", coordinates_by_percentage: [83.5, 25.7], scale: 0.46}
+      ] },
     ]
   }
 };
@@ -456,14 +457,14 @@ canvas.addEventListener("mousedown", () => {
     return;
   }
 
-  // Debug helper: on any page/popup depth, clicking empty space copies the
-  // click's [x%, y%] instead of the normal close-popup navigation.
+  // Debug helper: on any page/popup depth, clicking on non-clickable space
+  // also copies the click's [x%, y%] to clipboard, in addition to (not
+  // instead of) the normal close-popup navigation below.
   if (CLICK_TO_SHOW_COORDINATES) {
     const xPct = (mouseX / canvas.width) * 100;
     const yPct = (mouseY / canvas.height) * 100;
     const coords = `[${xPct.toFixed(1)}, ${yPct.toFixed(1)}]`;
     navigator.clipboard.writeText(coords).catch((err) => pushError(`Clipboard copy failed: ${err.message}`));
-    return;
   }
 
   const top = openPath[openPath.length - 1];
