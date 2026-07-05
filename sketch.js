@@ -19,23 +19,32 @@ const affirmations = [
   
 ];
 
-const APP_SIZE = 0.5;
+const APP_SIZE = 1; // app icon files were shrunk to match this exact display size
 
+// Every image file has been pre-shrunk (by a build script) to the largest
+// pixel size it's ever actually drawn at on the 1452x960 canvas — that's
+// purely a load-time optimization (was 31.6MB total, now ~5MB). Since
+// on-screen size = image's native pixels x scale, shrinking a file's native
+// pixels means its scale had to be recalculated so the drawn size stays
+// pixel-identical to before. Most became exactly 1 (their only usage is now
+// the file's full size); a few non-1 values below are real, deliberately
+// computed ratios for images reused at more than one size (e.g. a mug drawn
+// smaller when carried) — they are not typos.
 let images = {
   room_background: {
-    path: "main_room/room_background.png", coordinates_by_percentage: [0, 0], scale: 0.92,
+    path: "main_room/room_background.png", coordinates_by_percentage: [0, 0], scale: 1,
     children: [
-      { path: "main_room/bed.png", coordinates_by_percentage: [11.3, 28], scale: 0.45 },
-      { path: "main_room/pattern.png", coordinates_by_percentage: [50.1, 8.5], scale: 0.46 },
-      { path: "main_room/calendar.png", coordinates_by_percentage: [88, 8.1], scale: 0.3588 },
-      { path: "main_room/flowers.png", coordinates_by_percentage: [91.9, 23], scale: 0.368 },
-      { path: "main_room/books.png", coordinates_by_percentage: [32.2, 45], scale: 0.414 },
+      { path: "main_room/bed.png", coordinates_by_percentage: [11.3, 28], scale: 1 },
+      { path: "main_room/pattern.png", coordinates_by_percentage: [50.1, 8.5], scale: 1 },
+      { path: "main_room/calendar.png", coordinates_by_percentage: [88, 8.1], scale: 1 },
+      { path: "main_room/flowers.png", coordinates_by_percentage: [91.9, 23], scale: 1 },
+      { path: "main_room/books.png", coordinates_by_percentage: [32.2, 45], scale: 1 },
 
       {
-        path: "main_room/laptop.png", coordinates_by_percentage: [43, 14], scale: 0.46, shake: true,
+        path: "main_room/laptop.png", coordinates_by_percentage: [43, 14], scale: 1, shake: true,
         children: [
           {
-            path: "computer/desktop.png", coordinates_by_percentage: [50, 50], scale: 0.42,
+            path: "computer/desktop.png", coordinates_by_percentage: [50, 50], scale: 1,
             do_dark_background: true,
             children: [
               { path: "computer/app_bank.png", coordinates_by_percentage: [48.4, 30.0], scale: APP_SIZE },
@@ -43,16 +52,16 @@ let images = {
               { path: "computer/app_camera.png", coordinates_by_percentage: [66.8, 29.7], scale: APP_SIZE },
               { path: "computer/app_wizard.png", coordinates_by_percentage: [53.2, 48.5], scale: APP_SIZE },
               // app_file.png is reused for multiple items, so its id must be given explicitly to avoid duplicates.
-              { id: "app_file1", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 30.2], scale: 0.42 },
-              { id: "app_file2", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 45.2], scale: 0.42 },
-              { id: "app_file3", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 60.2], scale: 0.42 }, 
+              { id: "app_file1", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 30.2], scale: 1 },
+              { id: "app_file2", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 45.2], scale: 1 },
+              { id: "app_file3", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 60.2], scale: 1 },
 
               { path: "computer/alert_compromised_wizard.png", coordinates_by_percentage: [33.9, 68.0], scale: APP_SIZE },
 
               {
-                path: "computer/app_affirmations.png", coordinates_by_percentage: [35.5, 30.4], scale: 0.42, shake: true,
+                path: "computer/app_affirmations.png", coordinates_by_percentage: [35.5, 30.4], scale: 1, shake: true,
                 children: [
-                  { path: "computer/affirmations_popup.png", coordinates_by_percentage: [10, 10], scale: 0.4 },
+                  { path: "computer/affirmations_popup.png", coordinates_by_percentage: [10, 10], scale: 1 },
                 ]
               },
             ]
@@ -60,15 +69,15 @@ let images = {
         ]
       },
 
-      { path: "main_room/teapot.png", coordinates_by_percentage: [91.5, 40], scale: 0.49 },
-      { path: "main_room/notes.png", coordinates_by_percentage: [93.2, 35], scale: 0.36 },
-      { path: "main_room/paper.png", coordinates_by_percentage: [34.0, 70.3], scale: 0.46 },
-      { path: "main_room/drawing.png", coordinates_by_percentage: [52.7, 26], scale: 0.4 },
-      { path: "main_room/laundry.png", coordinates_by_percentage: [26, 29], scale: 0.41 },
+      { path: "main_room/teapot.png", coordinates_by_percentage: [91.5, 40], scale: 1 },
+      { path: "main_room/notes.png", coordinates_by_percentage: [93.2, 35], scale: 1 },
+      { path: "main_room/paper.png", coordinates_by_percentage: [34.0, 70.3], scale: 1 },
+      { path: "main_room/drawing.png", coordinates_by_percentage: [52.7, 26], scale: 1 },
+      { path: "main_room/laundry.png", coordinates_by_percentage: [26, 29], scale: 1 },
 
       // Clicking the coffeemaker opens the coffee counter minigame — see
       // the "COFFEE MINIGAME" section further down for how it works.
-      { path: "main_room/coffeemaker.png", coordinates_by_percentage: [83.5, 18.7], scale: 0.46, shake: true, children: [
+      { path: "main_room/coffeemaker.png", coordinates_by_percentage: [83.5, 18.7], scale: 1, shake: true, children: [
         {
           // The coffee minigame code below keys off this id — the file is
           // "newnewcounter.png" so it needs to be set explicitly rather
@@ -78,8 +87,9 @@ let images = {
           // Positioned so its right and bottom edges sit flush against the
           // canvas's right and bottom edges (center = canvas edge minus half
           // the scaled image size), rather than centered like other popups.
-          // Image is 4461x3326 native; scale 0.277 -> 1236x921 on the canvas.
-          coordinates_by_percentage: [57.45, 52.02], scale: 0.277,
+          // Was 4461x3326 native; the file's been shrunk to match its
+          // on-canvas size exactly (1236x921), so scale is now 1.
+          coordinates_by_percentage: [57.45, 52.02], scale: 1,
           do_dark_background: true,
         },
       ] },
@@ -500,16 +510,18 @@ function coffeeImage(filename) {
 // anywhere). Mug spots were hand-tuned with the coordinate-copy trick —
 // don't change those — the topping spots are still a best guess.
 // A mug's `topping` is null, "whip", or "cinnamon" (only one at a time).
+// scale is 1 on all of these — each image file was shrunk to match its
+// on-counter display size exactly (see the note above `images`).
 let coffeeItems = [
-  { kind: "mug", mugType: "papercup", state: "empty", topping: null, coordinates_by_percentage: [38, 28], scale: 0.32 },
-  { kind: "mug", mugType: "greenmug", state: "empty", topping: null, coordinates_by_percentage: [28, 45], scale: 0.32 },
-  { kind: "mug", mugType: "redmug", state: "empty", topping: null, coordinates_by_percentage: [35, 65], scale: 0.32 },
-  { kind: "mug", mugType: "wavymug", state: "empty", topping: null, coordinates_by_percentage: [47, 70], scale: 0.32 },
-  { kind: "mug", mugType: "yellowmug", state: "empty", topping: null, coordinates_by_percentage: [40, 44], scale: 0.32 },
-  { kind: "milk", coordinates_by_percentage: [77, 40], scale: 0.26 },
-  { kind: "creamer", coordinates_by_percentage: [90, 63], scale: 0.26 },
-  { kind: "whip", coordinates_by_percentage: [87, 40], scale: 0.26 },
-  { kind: "cinnamon", coordinates_by_percentage: [78, 65], scale: 0.26 },
+  { kind: "mug", mugType: "papercup", state: "empty", topping: null, coordinates_by_percentage: [38, 28], scale: 1 },
+  { kind: "mug", mugType: "greenmug", state: "empty", topping: null, coordinates_by_percentage: [28, 45], scale: 1 },
+  { kind: "mug", mugType: "redmug", state: "empty", topping: null, coordinates_by_percentage: [35, 65], scale: 1 },
+  { kind: "mug", mugType: "wavymug", state: "empty", topping: null, coordinates_by_percentage: [47, 70], scale: 1 },
+  { kind: "mug", mugType: "yellowmug", state: "empty", topping: null, coordinates_by_percentage: [40, 44], scale: 1 },
+  { kind: "milk", coordinates_by_percentage: [77, 40], scale: 1 },
+  { kind: "creamer", coordinates_by_percentage: [90, 63], scale: 1 },
+  { kind: "whip", coordinates_by_percentage: [87, 40], scale: 1 },
+  { kind: "cinnamon", coordinates_by_percentage: [78, 65], scale: 1 },
 ];
 
 // Toppings (not mugs) snap back to this starting spot once they're
@@ -560,8 +572,8 @@ let machineDiscovered = false;
 // change these two and every state (empty/brewing/full/nocarafe) moves and
 // resizes together, since they all share this same footprint.
 const MACHINE_COORDS = [57.25, 40];
-const MACHINE_SCALE = 0.4;
-const CARAFE_SCALE = 0.16;
+const MACHINE_SCALE = 1; // machine images were shrunk to match this display size
+const CARAFE_SCALE = 1; // carafe_pouring.png was shrunk to match this display size
 const BREW_TIME_MS = 2500;
 
 // Milk and creamer both just move a mug from "coffee" to "coffee_milk" —
@@ -570,28 +582,35 @@ const BREW_TIME_MS = 2500;
 // different shapes/sizes, each topping's placement is tuned per mug type
 // below (rather than needing a hand-drawn combo image for every mug) —
 // `default` is used for any mug type that doesn't have its own entry.
-// Nudge a mug's `scale`/`offsetX`/`offsetY` (canvas pixels, from the mug's
-// own center/top) directly to fix that mug's whipped cream or cinnamon.
+// Nudge a mug's `offsetX`/`offsetY` (canvas pixels, from the mug's own
+// center/top) directly to fix that mug's whipped cream or cinnamon —
+// `scale` is a resize-compensation ratio (see the note above `images`), not
+// a free tuning knob: topping_output_whippedcream.png and
+// topping_output_cinnamon.png were each shrunk to match their single
+// largest usage below (redmug's whip, and the mug-specific cinnamon
+// entries), so that entry reads 1 and the rest are that file's other
+// on-screen sizes relative to it — don't "round them to 1", they're correct
+// as different numbers.
 const MILK_LIKE = ["milk", "creamer"];
 const TOPPING_LIKE = ["whip", "cinnamon"];
 const TOPPING_STYLE = {
   whip: {
     image: "topping_output_whippedcream",
-    default: { scale: 0.26, offsetX: 0, offsetY: -45 },
-    papercup: { scale: 0.26, offsetX: 0, offsetY: -45 },
-    greenmug: { scale: 0.26, offsetX: 0, offsetY: -45 },
-    redmug: { scale: 0.29, offsetX: -17, offsetY: -28 },
-    wavymug: { scale: 0.26, offsetX: 0, offsetY: -45 },
-    yellowmug: { scale: 0.26, offsetX: 0, offsetY: -45 },
+    default: { scale: 0.896552, offsetX: 0, offsetY: -45 },
+    papercup: { scale: 0.896552, offsetX: 0, offsetY: -45 },
+    greenmug: { scale: 0.896552, offsetX: 0, offsetY: -45 },
+    redmug: { scale: 1, offsetX: -17, offsetY: -28 },
+    wavymug: { scale: 0.896552, offsetX: 0, offsetY: -45 },
+    yellowmug: { scale: 0.896552, offsetX: 0, offsetY: -45 },
   },
   cinnamon: {
     image: "topping_output_cinnamon",
-    default: { scale: 0.28, offsetX: 0, offsetY: -11 },
-    papercup: { scale: 0.3, offsetX: 0, offsetY: 20 },
-    greenmug: { scale: 0.3, offsetX: 0, offsetY: 20 },
-    redmug: { scale: 0.3, offsetX: -15, offsetY: 25 },
-    wavymug: { scale: 0.3, offsetX: 0, offsetY: 9 },
-    yellowmug: { scale: 0.3, offsetX: 0, offsetY: 8 },
+    default: { scale: 0.933333, offsetX: 0, offsetY: -11 },
+    papercup: { scale: 1, offsetX: 0, offsetY: 20 },
+    greenmug: { scale: 1, offsetX: 0, offsetY: 20 },
+    redmug: { scale: 1, offsetX: -15, offsetY: 25 },
+    wavymug: { scale: 1, offsetX: 0, offsetY: 9 },
+    yellowmug: { scale: 1, offsetX: 0, offsetY: 8 },
   },
 };
 
@@ -607,7 +626,10 @@ const TOPPING_TILT_DEGREES = { milk: 25, creamer: -25, whip: 25, cinnamon: -25 }
 // around the room. CARRIED_MUG_SCALE controls how big it looks; the offset
 // keeps it from sitting directly under (and blocking) the cursor.
 let lastCoffeeMug = null;
-const CARRIED_MUG_SCALE = 0.15;
+// Mug files were shrunk to match their on-counter size (scale 1 there);
+// carrying them smaller now means 0.15 of the ORIGINAL size is
+// 0.15 / 0.32 = 0.46875 of the shrunk file.
+const CARRIED_MUG_SCALE = 0.46875;
 const CARRIED_MUG_OFFSET = { x: 26, y: -34 };
 
 // Whichever coffeeItems entry is currently stuck to the mouse. Null when
