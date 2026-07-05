@@ -55,10 +55,16 @@ let images = {
       // the "COFFEE MINIGAME" section further down for how it works.
       { path: "main_room/coffeemaker.png", coordinates_by_percentage: [83.5, 18.7], scale: 0.46, children: [
         {
-          // id defaults to "coffeecounter" (from the filename) — the coffee
-          // minigame code below keys off that id, so don't rename it.
-          path: "coffeemaker/coffeecounter.png",
-          coordinates_by_percentage: [50, 50], scale: 0.26,
+          // The coffee minigame code below keys off this id — the file is
+          // "newcoffeecounteer.png" so it needs to be set explicitly rather
+          // than relying on the filename-derived default.
+          id: "coffeecounter",
+          path: "coffeemaker/newcoffeecounteer.png",
+          // Positioned so its right and bottom edges sit flush against the
+          // canvas's right and bottom edges (center = canvas edge minus half
+          // the scaled image size), rather than centered like other popups.
+          // Image is 4137x3067 native; scale 0.3 -> 1241x920 on the canvas.
+          coordinates_by_percentage: [57.25, 52.08], scale: 0.3,
           do_dark_background: true,
         },
       ] },
@@ -437,28 +443,73 @@ function coffeeImage(filename) {
   return coffeeImageCache[filename];
 }
 
-// Every mug on the counter, plus the milk and whip cans. Each has its own
-// position (so it can be picked up and set down anywhere) — these starting
-// spots are a best guess; nudge them with the coordinate-copy trick below.
+// Every mug state (empty/coffee/coffee_milk) is only ever requested the
+// first time a mug actually reaches that state — so without this, clicking
+// a mug right after it changes state could momentarily miss, because its
+// hitbox is sized from an image that hasn't finished loading yet. Loading
+// everything up front avoids that, the same way loadImages() does for the
+// rest of the room.
+[
+  "coffeemachine_carafe_empty", "coffeemachine_carafe_full", "coffeemachine_nocarafe",
+  "carafe_pouring", "topping_oatmilk", "topping_brownsugarcreamer", "topping_whip", "topping_cinnamon",
+  "topping_output_whippedcream", "topping_output_cinnamon",
+  ...Object.keys(MUG_STAGES).flatMap((mugType) => [mugType, MUG_STAGES[mugType].coffee, MUG_STAGES[mugType].coffee_milk]),
+].forEach(coffeeImage);
+
+// Every mug on the counter, plus the milk/creamer and whip/cinnamon
+// toppings. Each has its own position (so it can be picked up and set down
+// anywhere). Mug spots were hand-tuned with the coordinate-copy trick —
+// don't change those — the topping spots are still a best guess.
+// A mug's `topping` is null, "whip", or "cinnamon" (only one at a time).
 let coffeeItems = [
-  { kind: "mug", mugType: "papercup", state: "empty", hasWhip: false, coordinates_by_percentage: [15.8, 70.8], scale: 0.28 },
-  { kind: "mug", mugType: "greenmug", state: "empty", hasWhip: false, coordinates_by_percentage: [23.4, 78.1], scale: 0.28 },
-  { kind: "mug", mugType: "redmug", state: "empty", hasWhip: false, coordinates_by_percentage: [17.2, 83.3], scale: 0.28 },
-  { kind: "mug", mugType: "wavymug", state: "empty", hasWhip: false, coordinates_by_percentage: [29.6, 67.7], scale: 0.28 },
-  { kind: "mug", mugType: "yellowmug", state: "empty", hasWhip: false, coordinates_by_percentage: [32.4, 79.2], scale: 0.28 },
-  { kind: "milk", coordinates_by_percentage: [74.4, 72.9], scale: 0.22 },
-  { kind: "whip", coordinates_by_percentage: [82.6, 72.9], scale: 0.22 },
+  { kind: "mug", mugType: "papercup", state: "empty", topping: null, coordinates_by_percentage: [30, 24], scale: 0.32 },
+  { kind: "mug", mugType: "greenmug", state: "empty", topping: null, coordinates_by_percentage: [23.4, 39], scale: 0.32 },
+  { kind: "mug", mugType: "redmug", state: "empty", topping: null, coordinates_by_percentage: [24, 60], scale: 0.32 },
+  { kind: "mug", mugType: "wavymug", state: "empty", topping: null, coordinates_by_percentage: [35, 55], scale: 0.32 },
+  { kind: "mug", mugType: "yellowmug", state: "empty", topping: null, coordinates_by_percentage: [32.4, 40], scale: 0.32 },
+  { kind: "milk", coordinates_by_percentage: [74.4, 40], scale: 0.26 },
+  { kind: "creamer", coordinates_by_percentage: [74.4, 55], scale: 0.26 },
+  { kind: "whip", coordinates_by_percentage: [82.6, 50], scale: 0.26 },
+  { kind: "cinnamon", coordinates_by_percentage: [82.6, 65], scale: 0.26 },
 ];
+
+// Toppings (not mugs) snap back to this starting spot once they're
+// successfully used on a mug, so the counter resets itself instead of
+// toppings piling up wherever they were last used.
+coffeeItems.forEach((item) => {
+  if (item.kind !== "mug") item.home = item.coordinates_by_percentage;
+});
 
 // "empty" -> waiting to brew. "brewing" -> mid-brew, machine not clickable.
 // "full" -> ready to pick up and pour. "nocarafe" -> the carafe is out and
-// about (held, or set down loose on the counter), so the machine itself
-// does nothing until that carafe gets poured into a mug and disappears.
+// about (held) so the machine itself does nothing until that carafe gets
+// poured into a mug and disappears.
 let machineState = "empty";
-const MACHINE_COORDS = [50, 61];
-const MACHINE_SCALE = 0.21;
+// One shared position + size for the machine, however it currently looks —
+// change these two and every state (empty/brewing/full/nocarafe) moves and
+// resizes together, since they all share this same footprint.
+const MACHINE_COORDS = [57.25, 40];
+const MACHINE_SCALE = 0.4;
 const CARAFE_SCALE = 0.16;
 const BREW_TIME_MS = 2500;
+
+// Milk and creamer both just move a mug from "coffee" to "coffee_milk" —
+// two different toppings with the same effect. Whip and cinnamon both sit
+// as a dusting/dollop drawn on top of the mug — each with its own overlay
+// image, size, and position offset (in canvas pixels from the mug's own
+// center/top) so they can be nudged independently without touching the
+// mug's own coordinates above. Nudge `scale`/`offsetX`/`offsetY` directly
+// to fix the whipped cream (or cinnamon) placement.
+const MILK_LIKE = ["milk", "creamer"];
+const TOPPING_LIKE = ["whip", "cinnamon"];
+const TOPPING_STYLE = {
+  whip: { image: "topping_output_whippedcream", scale: 0.3, offsetX: 0, offsetY: -40 },
+  cinnamon: { image: "topping_output_cinnamon", scale: 0.5, offsetX: 0, offsetY: -15 },
+};
+
+// While held, milk/creamer/whip/cinnamon tilt like they're being poured.
+// Positive = tips clockwise; flip the sign if it looks backwards.
+const TOPPING_TILT_DEGREES = 25;
 
 // Whichever coffeeItems entry is currently stuck to the mouse. Null when
 // nothing is held.
@@ -473,7 +524,9 @@ function machineImagePath() {
 function itemImagePath(item) {
   if (item.kind === "mug") return item.state === "empty" ? item.mugType : MUG_STAGES[item.mugType][item.state];
   if (item.kind === "milk") return "topping_oatmilk";
+  if (item.kind === "creamer") return "topping_brownsugarcreamer";
   if (item.kind === "whip") return "topping_whip";
+  if (item.kind === "cinnamon") return "topping_cinnamon";
   return "carafe_pouring"; // item.kind === "carafe"
 }
 
@@ -503,35 +556,43 @@ function pixelsToPercentage(x, y) {
 }
 
 // Sets whatever's held down at (x, y). If it lands on a mug in the right
-// state, the effect (pour coffee / add milk / add whip) applies instead of
-// just resting the tool there. Either way — Lauren didn't want anything to
-// snap back — it ends up exactly where the click was.
+// state, the effect (pour coffee / add milk / add whip) applies — and on
+// success, milk/creamer/whip/cinnamon teleport back to their own starting
+// spot on the counter rather than staying where they were used. Missing the
+// target still just drops them exactly where you clicked (no snapping back)
+// — the carafe is the one exception: it's not allowed to be set down loose,
+// so an invalid click just leaves it stuck to the mouse (see
+// handleCoffeeCounterClick).
 function placeHeldItem(x, y) {
   const item = heldItem;
 
-  if (item.kind === "carafe" || item.kind === "milk" || item.kind === "whip") {
-    const targetMug = coffeeItems.find(
-      (other) => other !== item && other.kind === "mug" && hitTestItem(other, x, y)
-    );
+  const targetMug = coffeeItems.find(
+    (other) => other !== item && other.kind === "mug" && hitTestItem(other, x, y)
+  );
 
-    if (targetMug) {
-      if (item.kind === "carafe" && targetMug.state === "empty") {
-        targetMug.state = "coffee";
-        coffeeItems = coffeeItems.filter((i) => i !== item);
-        machineState = "empty";
-        heldItem = null;
-        return; // the carafe is consumed, nothing left to place
-      }
-      if (item.kind === "milk" && targetMug.state === "coffee") {
-        targetMug.state = "coffee_milk";
-      }
-      if (item.kind === "whip" && targetMug.state !== "empty") {
-        targetMug.hasWhip = true;
-      }
+  if (item.kind === "carafe") {
+    if (targetMug && targetMug.state === "empty") {
+      targetMug.state = "coffee";
+      coffeeItems = coffeeItems.filter((i) => i !== item);
+      machineState = "empty";
+      heldItem = null;
+    }
+    return; // no valid mug: stays held, nothing more to do
+  }
+
+  let applied = false;
+  if (targetMug) {
+    if (MILK_LIKE.includes(item.kind) && targetMug.state === "coffee") {
+      targetMug.state = "coffee_milk";
+      applied = true;
+    }
+    if (TOPPING_LIKE.includes(item.kind) && targetMug.state !== "empty") {
+      targetMug.topping = item.kind;
+      applied = true;
     }
   }
 
-  item.coordinates_by_percentage = pixelsToPercentage(x, y);
+  item.coordinates_by_percentage = applied ? item.home : pixelsToPercentage(x, y);
   heldItem = null;
 }
 
@@ -568,6 +629,25 @@ function handleCoffeeCounterClick(x, y) {
   return false; // clicked empty counter space with nothing held — no-op
 }
 
+// Draws a mug's whip/cinnamon dusting on top of it, using that topping's
+// own independent size + offset (not the mug's scale) — (x, y, w, h) is
+// wherever the mug itself was just drawn, held or resting.
+function drawMugTopping(mug, x, y, w, h) {
+  if (!mug.topping) return;
+  const style = TOPPING_STYLE[mug.topping];
+  const img = coffeeImage(style.image);
+  if (!img.complete || img.naturalWidth === 0) return;
+  const toppingW = img.width * style.scale;
+  const toppingH = img.height * style.scale;
+  ctx.drawImage(
+    img,
+    x + w / 2 - toppingW / 2 + style.offsetX,
+    y + style.offsetY,
+    toppingW,
+    toppingH
+  );
+}
+
 function drawCoffeeCounter() {
   safeDrawImage(coffeeImage(machineImagePath()), MACHINE_COORDS, MACHINE_SCALE, "coffee machine");
 
@@ -576,20 +656,23 @@ function drawCoffeeCounter() {
     const { img, x, y, w, h } = coffeeItemRect(item);
     if (!img.complete || img.naturalWidth === 0) return;
     ctx.drawImage(img, x, y, w, h);
-
-    if (item.kind === "mug" && item.hasWhip && item.state !== "empty") {
-      const whipImg = coffeeImage("topping_output_whippedcream");
-      if (!whipImg.complete || whipImg.naturalWidth === 0) return;
-      const whipW = whipImg.width * item.scale;
-      const whipH = whipImg.height * item.scale;
-      ctx.drawImage(whipImg, x + w / 2 - whipW / 2, y - whipH * 0.3, whipW, whipH);
-    }
+    if (item.kind === "mug") drawMugTopping(item, x, y, w, h);
   });
 
   if (heldItem) {
     const { img, w, h } = coffeeItemRect(heldItem);
     if (img.complete && img.naturalWidth !== 0) {
-      ctx.drawImage(img, mouseX - w / 2, mouseY - h / 2, w, h);
+      if (MILK_LIKE.includes(heldItem.kind) || TOPPING_LIKE.includes(heldItem.kind)) {
+        // Tilted like it's being poured, pivoting around its own center.
+        ctx.save();
+        ctx.translate(mouseX, mouseY);
+        ctx.rotate((TOPPING_TILT_DEGREES * Math.PI) / 180);
+        ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        ctx.restore();
+      } else {
+        ctx.drawImage(img, mouseX - w / 2, mouseY - h / 2, w, h);
+      }
+      if (heldItem.kind === "mug") drawMugTopping(heldItem, mouseX - w / 2, mouseY - h / 2, w, h);
     }
   }
 }
