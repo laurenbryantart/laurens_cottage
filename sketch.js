@@ -1,7 +1,22 @@
 const affirmations = [
   "I am loved",
-  "I am great",
-  "hello"
+  "I am the most beautiful girl in the world",
+  "I am pretty sure everyone hates me???",
+  "I am good at my job. I am so good at my job.",
+  "I am...hold on",
+  "I think I might be wrong",
+  "I think I might be right",
+  "I am sure there is something out there",
+  "I always eat my feelings",
+  "One day I will make freinds",
+  "I need to chill out",
+  "I am flying. I am ascending."
+  "Fuuuuuuuuuuuuuuuuuuuck",
+  "I am really good at drawing",
+  "Drawing is the only thing I am good at",
+  "I am one",
+  "I am whole",
+  
 ];
 
 const APP_SIZE = 0.5;
@@ -17,7 +32,7 @@ let images = {
       { path: "main_room/books.png", coordinates_by_percentage: [32.2, 40.6], scale: 0.414 },
 
       {
-        path: "main_room/laptop.png", coordinates_by_percentage: [44.4, 16.3], scale: 0.46,
+        path: "main_room/laptop.png", coordinates_by_percentage: [44.4, 16.3], scale: 0.46, shake: true,
         children: [
           {
             path: "computer/desktop.png", coordinates_by_percentage: [50, 50], scale: 0.42,
@@ -35,7 +50,7 @@ let images = {
               { path: "computer/alert_compromised_wizard.png", coordinates_by_percentage: [33.9, 68.0], scale: APP_SIZE },
 
               {
-                path: "computer/app_affirmations.png", coordinates_by_percentage: [35.5, 30.4], scale: 0.42,
+                path: "computer/app_affirmations.png", coordinates_by_percentage: [35.5, 30.4], scale: 0.42, shake: true,
                 children: [
                   { path: "computer/affirmations_popup.png", coordinates_by_percentage: [10, 10], scale: 0.4 },
                 ]
@@ -90,6 +105,7 @@ function normalize(node) {
   if (node.children === undefined) node.children = [];
   if (node.hide === undefined) node.hide = [];
   if (node.do_dark_background === undefined) node.do_dark_background = false;
+  if (node.shake === undefined) node.shake = false;
   node.path = IMAGES_FOLDER + node.path;
   node.children.forEach(normalize);
 }
@@ -232,7 +248,21 @@ function topLeftFor(coordinates_by_percentage, w, h) {
 
 // -------------------- SAFE DRAW --------------------
 
-function safeDrawImage(img, coordinates_by_percentage, scale, label) {
+// A small idle wobble for marking specific clickable things as
+// interactive — not tied to the popup tree, so it works for any drawn
+// thing (a tree node's `shake: true`, or a one-off custom-drawn sprite like
+// the coffee machine) as long as you pass it a stable id. Each id gets its
+// own phase offset (from the characters in the id) so multiple shaking
+// things don't wobble in lockstep.
+const SHAKE_MAX_DEGREES = 3;
+const SHAKE_PERIOD_MS = 1600;
+function shakeAngleRadians(id) {
+  const phase = [...id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+  const t = (performance.now() + phase * 137) / SHAKE_PERIOD_MS;
+  return (Math.sin(t * Math.PI * 2) * SHAKE_MAX_DEGREES * Math.PI) / 180;
+}
+
+function safeDrawImage(img, coordinates_by_percentage, scale, label, rotationRadians = 0) {
   try {
     if (!img) return;
     if (!img.complete || img.naturalWidth === 0) return;
@@ -240,7 +270,16 @@ function safeDrawImage(img, coordinates_by_percentage, scale, label) {
     const w = img.width * scale;
     const h = img.height * scale;
     const { x, y } = topLeftFor(coordinates_by_percentage, w, h);
-    ctx.drawImage(img, x, y, w, h);
+
+    if (rotationRadians) {
+      ctx.save();
+      ctx.translate(x + w / 2, y + h / 2);
+      ctx.rotate(rotationRadians);
+      ctx.drawImage(img, -w / 2, -h / 2, w, h);
+      ctx.restore();
+    } else {
+      ctx.drawImage(img, x, y, w, h);
+    }
   } catch (err) {
     pushError(`drawImage failed: ${label} (${err.message})`);
   }
@@ -703,7 +742,7 @@ function drawCarriedMug() {
 }
 
 function drawCoffeeCounter() {
-  safeDrawImage(coffeeImage(machineImagePath()), MACHINE_COORDS, MACHINE_SCALE, "coffee machine");
+  safeDrawImage(coffeeImage(machineImagePath()), MACHINE_COORDS, MACHINE_SCALE, "coffee machine", shakeAngleRadians("coffee_machine"));
 
   coffeeItems.forEach((item) => {
     if (item === heldItem) return; // drawn glued to the mouse instead, below
@@ -753,13 +792,13 @@ function draw() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      safeDrawImage(node.img, node.coordinates_by_percentage, node.scale, node.id);
+      safeDrawImage(node.img, node.coordinates_by_percentage, node.scale, node.id, node.shake ? shakeAngleRadians(node.id) : 0);
       if (node.text) safeTry(`affirmation text: ${node.id}`, () => drawAffirmationText(node));
       if (node.id === "coffeecounter") safeTry("coffee counter", drawCoffeeCounter);
 
       node.children.forEach((child) => {
         if (hidden.has(child.id) || !child.img) return;
-        safeDrawImage(child.img, child.coordinates_by_percentage, child.scale, child.id);
+        safeDrawImage(child.img, child.coordinates_by_percentage, child.scale, child.id, child.shake ? shakeAngleRadians(child.id) : 0);
       });
     });
 
