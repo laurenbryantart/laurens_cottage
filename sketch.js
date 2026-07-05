@@ -3,7 +3,7 @@ const affirmations = [
   "I am the most beautiful girl in the world",
   "I am pretty sure everyone hates me???",
   "I am good at my job. I am so good at my job.",
-  "I am...hold on",
+  "I am.  .  .  hold on",
   "I think I might be wrong",
   "I think I might be right",
   "I am sure there is something out there",
@@ -25,14 +25,14 @@ let images = {
   room_background: {
     path: "main_room/room_background.png", coordinates_by_percentage: [0, 0], scale: 0.92,
     children: [
-      { path: "main_room/bed.png", coordinates_by_percentage: [11.8, 30.1], scale: 0.414 },
+      { path: "main_room/bed.png", coordinates_by_percentage: [11.3, 28], scale: 0.45 },
       { path: "main_room/pattern.png", coordinates_by_percentage: [50.1, 8.5], scale: 0.46 },
-      { path: "main_room/calendar.png", coordinates_by_percentage: [83.3, 8.1], scale: 0.3588 },
-      { path: "main_room/flowers.png", coordinates_by_percentage: [91.9, 25.9], scale: 0.368 },
-      { path: "main_room/books.png", coordinates_by_percentage: [32.2, 40.6], scale: 0.414 },
+      { path: "main_room/calendar.png", coordinates_by_percentage: [88, 8.1], scale: 0.3588 },
+      { path: "main_room/flowers.png", coordinates_by_percentage: [91.9, 23], scale: 0.368 },
+      { path: "main_room/books.png", coordinates_by_percentage: [32.2, 45], scale: 0.414 },
 
       {
-        path: "main_room/laptop.png", coordinates_by_percentage: [44.4, 16.3], scale: 0.46, shake: true,
+        path: "main_room/laptop.png", coordinates_by_percentage: [43, 14], scale: 0.46, shake: true,
         children: [
           {
             path: "computer/desktop.png", coordinates_by_percentage: [50, 50], scale: 0.42,
@@ -60,15 +60,15 @@ let images = {
         ]
       },
 
-      { path: "main_room/teapot.png", coordinates_by_percentage: [91.5, 42.8], scale: 0.414 },
-      { path: "main_room/notes.png", coordinates_by_percentage: [92.7, 34.5], scale: 0.36 },
+      { path: "main_room/teapot.png", coordinates_by_percentage: [91.5, 40], scale: 0.49 },
+      { path: "main_room/notes.png", coordinates_by_percentage: [93.2, 35], scale: 0.36 },
       { path: "main_room/paper.png", coordinates_by_percentage: [34.0, 70.3], scale: 0.46 },
-      { path: "main_room/drawing.png", coordinates_by_percentage: [52.2, 28.5], scale: 0.36 },
-      { path: "main_room/laundry.png", coordinates_by_percentage: [26.2, 32.8], scale: 0.41 },
+      { path: "main_room/drawing.png", coordinates_by_percentage: [52.7, 26], scale: 0.4 },
+      { path: "main_room/laundry.png", coordinates_by_percentage: [26, 29], scale: 0.41 },
 
       // Clicking the coffeemaker opens the coffee counter minigame — see
       // the "COFFEE MINIGAME" section further down for how it works.
-      { path: "main_room/coffeemaker.png", coordinates_by_percentage: [83.5, 18.7], scale: 0.46, children: [
+      { path: "main_room/coffeemaker.png", coordinates_by_percentage: [83.5, 18.7], scale: 0.46, shake: true, children: [
         {
           // The coffee minigame code below keys off this id — the file is
           // "newnewcounter.png" so it needs to be set explicitly rather
@@ -501,15 +501,15 @@ function coffeeImage(filename) {
 // don't change those — the topping spots are still a best guess.
 // A mug's `topping` is null, "whip", or "cinnamon" (only one at a time).
 let coffeeItems = [
-  { kind: "mug", mugType: "papercup", state: "empty", topping: null, coordinates_by_percentage: [30, 24], scale: 0.32 },
-  { kind: "mug", mugType: "greenmug", state: "empty", topping: null, coordinates_by_percentage: [23.4, 39], scale: 0.32 },
-  { kind: "mug", mugType: "redmug", state: "empty", topping: null, coordinates_by_percentage: [24, 60], scale: 0.32 },
-  { kind: "mug", mugType: "wavymug", state: "empty", topping: null, coordinates_by_percentage: [35, 55], scale: 0.32 },
-  { kind: "mug", mugType: "yellowmug", state: "empty", topping: null, coordinates_by_percentage: [32.4, 40], scale: 0.32 },
-  { kind: "milk", coordinates_by_percentage: [74.4, 40], scale: 0.26 },
-  { kind: "creamer", coordinates_by_percentage: [74.4, 55], scale: 0.26 },
-  { kind: "whip", coordinates_by_percentage: [82.6, 50], scale: 0.26 },
-  { kind: "cinnamon", coordinates_by_percentage: [82.6, 65], scale: 0.26 },
+  { kind: "mug", mugType: "papercup", state: "empty", topping: null, coordinates_by_percentage: [38, 28], scale: 0.32 },
+  { kind: "mug", mugType: "greenmug", state: "empty", topping: null, coordinates_by_percentage: [28, 45], scale: 0.32 },
+  { kind: "mug", mugType: "redmug", state: "empty", topping: null, coordinates_by_percentage: [35, 65], scale: 0.32 },
+  { kind: "mug", mugType: "wavymug", state: "empty", topping: null, coordinates_by_percentage: [47, 70], scale: 0.32 },
+  { kind: "mug", mugType: "yellowmug", state: "empty", topping: null, coordinates_by_percentage: [40, 44], scale: 0.32 },
+  { kind: "milk", coordinates_by_percentage: [77, 40], scale: 0.26 },
+  { kind: "creamer", coordinates_by_percentage: [90, 63], scale: 0.26 },
+  { kind: "whip", coordinates_by_percentage: [87, 40], scale: 0.26 },
+  { kind: "cinnamon", coordinates_by_percentage: [78, 65], scale: 0.26 },
 ];
 
 // Toppings (not mugs) snap back to this starting spot once they're
@@ -557,12 +557,12 @@ const TOPPING_STYLE = {
   },
   cinnamon: {
     image: "topping_output_cinnamon",
-    default: { scale: 0.3, offsetX: 0, offsetY: -9 },
-    papercup: { scale: 0.3, offsetX: 0, offsetY: -9 },
-    greenmug: { scale: 0.3, offsetX: 0, offsetY: -9 },
-    redmug: { scale: 0.3, offsetX: 0, offsetY: -9 },
-    wavymug: { scale: 0.3, offsetX: 0, offsetY: -9 },
-    yellowmug: { scale: 0.3, offsetX: 0, offsetY: -9 },
+    default: { scale: 0.28, offsetX: 0, offsetY: -11 },
+    papercup: { scale: 0.3, offsetX: 0, offsetY: 20 },
+    greenmug: { scale: 0.3, offsetX: 0, offsetY: 20 },
+    redmug: { scale: 0.3, offsetX: -15, offsetY: 25 },
+    wavymug: { scale: 0.3, offsetX: 0, offsetY: 9 },
+    yellowmug: { scale: 0.3, offsetX: 0, offsetY: 8 },
   },
 };
 
