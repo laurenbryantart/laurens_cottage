@@ -105,6 +105,7 @@ let images = {
           }
         ]
       },
+      // test
 
       { path: "main_room/teapot.png", coordinates_by_percentage: [91.5, 40], scale: 1 },
       { path: "main_room/notes.png", coordinates_by_percentage: [93.2, 35], scale: 1 },
