@@ -952,7 +952,10 @@ function drawCoffeeCounter() {
 // scores a point; letting one reach the bottom resets the score to zero.
 // While playing, the mouse cursor is replaced by wizardhimself.png — free to
 // roam the whole desktop (unlike the pieces) — positioned so the star at
-// the tip of his wand sits exactly on the real cursor position.
+// the tip of his wand sits exactly on the real cursor position. On a loss,
+// the cursor and every piece freeze in place for WIZARD_LOSS_FREEZE_MS while
+// the wizard flashes; clicking outside the game's own background quits it,
+// back to the desktop, the same way every other app closes.
 
 const WIZARD_PIECE_SCALE = 0.5;
 // The art has a "THE WIZARD" title band painted across the top of the
@@ -1004,6 +1007,10 @@ let wizardLossFlashStart = 0;
 // Snapshot of the cursor's on-screen position at the moment of a loss, so
 // the wizard can be redrawn there (frozen) instead of following the mouse.
 let wizardFreezeCursorPos = null;
+// True from the moment a loss freeze starts until the frame the freeze
+// lifts — that frame clears out the piece(s) that fell through before
+// resuming normal falling, so they don't just re-trigger the freeze forever.
+let wizardPendingClearOnUnfreeze = false;
 
 // Called when app_wizard is opened, so every session starts fresh.
 function resetWizardGame() {
@@ -1015,6 +1022,7 @@ function resetWizardGame() {
   wizardFreezeUntil = 0;
   wizardLossFlashStart = 0;
   wizardFreezeCursorPos = null;
+  wizardPendingClearOnUnfreeze = false;
 }
 
 function wizardGameRect(node) {
@@ -1055,6 +1063,15 @@ function updateWizardGame(node) {
   if (now < wizardFreezeUntil) return;
 
   const rect = wizardGameRect(node);
+
+  // The freeze just lifted: drop whatever fell through before it froze, so
+  // it doesn't immediately re-trigger the bottom check below forever.
+  if (wizardPendingClearOnUnfreeze) {
+    const bottom = rect.y + rect.h;
+    wizardPieces = wizardPieces.filter((piece) => piece.y + piece.h < bottom);
+    wizardPendingClearOnUnfreeze = false;
+  }
+
   const difficulty = wizardDifficulty(now);
   const fallSpeed = WIZARD_MIN_FALL_SPEED + (WIZARD_MAX_FALL_SPEED - WIZARD_MIN_FALL_SPEED) * difficulty;
   const spawnInterval = WIZARD_MIN_SPAWN_INTERVAL_MS + (WIZARD_MAX_SPAWN_INTERVAL_MS - WIZARD_MIN_SPAWN_INTERVAL_MS) * difficulty;
@@ -1072,6 +1089,7 @@ function updateWizardGame(node) {
     wizardFreezeUntil = now + WIZARD_LOSS_FREEZE_MS;
     wizardLossFlashStart = now;
     wizardFreezeCursorPos = { x: mouseX, y: mouseY };
+    wizardPendingClearOnUnfreeze = true;
     return; // skip the filter below so the pieces stay put during the freeze
   }
   wizardPieces = wizardPieces.filter((piece) => piece.y + piece.h < bottom);
@@ -1234,12 +1252,18 @@ function copyClickCoordinates(x, y) {
 canvas.addEventListener("mousedown", () => {
   const topNode = openPath[openPath.length - 1];
 
-  // The wizard game has its own click handling (score a hit, or quit only
-  // once the click is outside the desktop) instead of the generic
-  // one-level-per-click popup closing used everywhere else.
+  // A click inside the wizard game's own background scores a hit (or misses
+  // harmlessly); a click outside it falls through to the generic
+  // click-outside-closes-the-popup logic further down, same as every other
+  // app — so clicking out of the wizard game's background quits it, back to
+  // the desktop.
   if (topNode.id === "wizardgame") {
-    handleWizardGameClick(mouseX, mouseY);
-    return;
+    const rect = wizardGameRect(topNode);
+    const insideGame = mouseX >= rect.x && mouseX <= rect.x + rect.w && mouseY >= rect.y && mouseY <= rect.y + rect.h;
+    if (insideGame) {
+      handleWizardGameClick(mouseX, mouseY);
+      return;
+    }
   }
 
   if (topNode.id === "coffeecounter") {
