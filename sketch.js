@@ -47,7 +47,28 @@ let images = {
             path: "computer/desktop.png", coordinates_by_percentage: [50, 50], scale: 1,
             do_dark_background: true,
             children: [
-              { path: "computer/app_bank.png", coordinates_by_percentage: [48.4, 30.0], scale: APP_SIZE },
+              {
+                path: "computer/app_bank.png", coordinates_by_percentage: [48.4, 30.0], scale: APP_SIZE, shake: true,
+                children: [
+                  {
+                    // The balance readout and PRESS button are baked into
+                    // this art, not separate nodes — see the "BANK APP"
+                    // section further down for how clicks on them work.
+                    id: "bank_home", path: "computer/bank_home.png",
+                    coordinates_by_percentage: [50, 50], scale: 0.49,
+                    do_dark_background: true,
+                    // Keeps these two templates from also rendering
+                    // statically at their own placeholder coordinates
+                    // whenever bank_home is open — they're only ever used
+                    // as clone stencils for spawned dollar bills.
+                    hide: ["dollar_template1", "dollar_template2"],
+                    children: [
+                      { id: "dollar_template1", path: "computer/dollar1.png", coordinates_by_percentage: [50, 50], scale: 0.22 },
+                      { id: "dollar_template2", path: "computer/dollar2.png", coordinates_by_percentage: [50, 50], scale: 0.25 },
+                    ],
+                  },
+                ],
+              },
               { path: "computer/app_borders.png", coordinates_by_percentage: [65.7, 55.7], scale: APP_SIZE },
               { path: "computer/app_camera.png", coordinates_by_percentage: [66.8, 29.7], scale: APP_SIZE },
               { path: "computer/app_wizard.png", coordinates_by_percentage: [53.2, 48.5], scale: APP_SIZE },
@@ -189,7 +210,7 @@ let mouseY = 0;
 // the canvas's width/height, rounded to 1 decimal) to the clipboard instead
 // of opening/closing popups — handy for reading off
 // `coordinates_by_percentage` values.
-const CLICK_TO_SHOW_COORDINATES = true;
+const CLICK_TO_SHOW_COORDINATES = false;
 
 // -------------------- ERROR SYSTEM --------------------
 
@@ -338,25 +359,30 @@ function drawErrors() {
 // desktop's children (app_bank, app_file, ...), all shown together.
 // A node is only clickable if it has children to reveal.
 
-// Clicking app_affirmations doesn't reveal its template child directly —
-// it clones the template with a random affirmation and a random position
-// inside the desktop's bounds, so every click stacks a brand new popup.
-function spawnAffirmationPopup(template) {
+// Clicking app_affirmations (or the bank's PRESS button) doesn't reveal a
+// template child directly — it clones a random one of `templates` at a
+// random position inside `container`'s bounds, so every click stacks a
+// brand new, independent popup on top of whatever's already there. `extra`
+// gets merged in for any per-feature bits (affirmations attach `text`;
+// dollar bills need nothing extra).
+function spawnRandomPopup(container, templates, extra = {}) {
+  const template = templates[Math.floor(Math.random() * templates.length)];
+
   const w = template.img.width * template.scale;
   const h = template.img.height * template.scale;
 
-  const dw = desktopNode.img.width * desktopNode.scale;
-  const dh = desktopNode.img.height * desktopNode.scale;
-  const { x: dx, y: dy } = topLeftFor(desktopNode.coordinates_by_percentage, dw, dh);
+  const cw = container.img.width * container.scale;
+  const ch = container.img.height * container.scale;
+  const { x: cx, y: cy } = topLeftFor(container.coordinates_by_percentage, cw, ch);
 
-  // Keep spawned popups off the desktop's edges by a 5% margin on each side.
-  const marginX = dw * 0.05;
-  const marginY = dh * 0.05;
+  // Keep spawned popups off the container's edges by a 5% margin on each side.
+  const marginX = cw * 0.05;
+  const marginY = ch * 0.05;
 
-  const minX = dx + marginX;
-  const minY = dy + marginY;
-  const maxX = dx + dw - marginX - w;
-  const maxY = dy + dh - marginY - h;
+  const minX = cx + marginX;
+  const minY = cy + marginY;
+  const maxX = cx + cw - marginX - w;
+  const maxY = cy + ch - marginY - h;
 
   const topLeftX = minX + Math.random() * Math.max(0, maxX - minX);
   const topLeftY = minY + Math.random() * Math.max(0, maxY - minY);
@@ -369,14 +395,18 @@ function spawnAffirmationPopup(template) {
   const yPct = (y / canvas.height) * 100;
 
   return {
-    id: template.id,
+    // A unique id per spawned clone, not the template's own id — bank_home
+    // hides its templates by id (dollar_template1/2) so they don't also
+    // render statically at their placeholder spot, and reusing the
+    // template's id here would make every spawned dollar bill invisible too.
+    id: `${template.id}-${Math.random().toString(36).slice(2)}`,
     path: template.path,
     img: template.img,
     coordinates_by_percentage: [xPct, yPct],
     scale: template.scale,
     children: [],
     hide: [],
-    text: affirmations[Math.floor(Math.random() * affirmations.length)],
+    ...extra,
   };
 }
 
@@ -423,6 +453,65 @@ function drawAffirmationText(node) {
   lines.forEach((line, i) => ctx.fillText(line, x + w / 2, startY + i * lineHeight));
 
   ctx.restore();
+}
+
+// -------------------- BANK APP --------------------
+// bank_home is a single static image with two "hot" spots baked into the
+// art (the balance readout and the PRESS button) rather than separate
+// clickable nodes — so, like the coffee counter, it needs a little custom
+// handling instead of relying on the generic popup-tree clicks. Both rects
+// are fractions (0-1) of bank_home's own width/height, so they still line
+// up correctly if bank_home's position/scale ever changes.
+const BANK_BALANCE_RECT = { xMin: 0.173, xMax: 0.881, yMin: 0.365, yMax: 0.504 };
+const BANK_PRESS_RECT = { xMin: 0.305, xMax: 0.771, yMin: 0.754, yMax: 0.876 };
+
+let bankBalance = 0;
+
+function randomBankBalance() {
+  return Math.floor(Math.random() * 1999999) - 999999; // -999,999 to 999,999
+}
+
+function bankHomeRect(bankHomeNode) {
+  const w = bankHomeNode.img.width * bankHomeNode.scale;
+  const h = bankHomeNode.img.height * bankHomeNode.scale;
+  const { x, y } = topLeftFor(bankHomeNode.coordinates_by_percentage, w, h);
+  return { x, y, w, h };
+}
+
+function isWithinLocalRect(rect, bx, by, bw, bh, x, y) {
+  return (
+    x >= bx + rect.xMin * bw && x <= bx + rect.xMax * bw &&
+    y >= by + rect.yMin * bh && y <= by + rect.yMax * bh
+  );
+}
+
+// Draws the current balance centered in the balance box, in the same
+// handwriting font the affirmation popups use.
+function drawBankBalance(bankHomeNode) {
+  const { x, y, w, h } = bankHomeRect(bankHomeNode);
+  const cx = x + ((BANK_BALANCE_RECT.xMin + BANK_BALANCE_RECT.xMax) / 2) * w;
+  const cy = y + ((BANK_BALANCE_RECT.yMin + BANK_BALANCE_RECT.yMax) / 2) * h;
+
+  ctx.save();
+  ctx.fillStyle = "black";
+  ctx.font = "34px Handwriting, cursive";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(bankBalance.toLocaleString("en-US"), cx, cy);
+  ctx.restore();
+}
+
+// Returns true if the click hit the PRESS button: balance goes up by one,
+// and a random dollar bill spawns and stacks on the screen, the same
+// "clone a random template somewhere random" trick app_affirmations uses.
+function handleBankPressClick(bankHomeNode, x, y) {
+  const { x: bx, y: by, w: bw, h: bh } = bankHomeRect(bankHomeNode);
+  if (!isWithinLocalRect(BANK_PRESS_RECT, bx, by, bw, bh, x, y)) return false;
+
+  bankBalance += 1;
+  const dollarTemplates = bankHomeNode.children.filter((c) => c.id.startsWith("dollar_template"));
+  openPath.push(spawnRandomPopup(bankHomeNode, dollarTemplates));
+  return true;
 }
 
 function hitTest(node, x, y) {
@@ -870,6 +959,7 @@ function draw() {
       safeDrawImage(node.img, node.coordinates_by_percentage, node.scale, node.id, node.shake && isActiveLayer ? shakeAngleRadians(node.id) : 0);
       if (node.text) safeTry(`affirmation text: ${node.id}`, () => drawAffirmationText(node));
       if (node.id === "coffeecounter") safeTry("coffee counter", drawCoffeeCounter);
+      if (node.id === "bank_home") safeTry("bank balance", () => drawBankBalance(node));
 
       node.children.forEach((child) => {
         if (hidden.has(child.id) || !child.img) return;
@@ -941,10 +1031,21 @@ canvas.addEventListener("mousedown", () => {
     if (heldItem) return;
   }
 
+  // The bank's PRESS button is checked regardless of what's on top of it
+  // (dollar bills stack on top of bank_home the same way affirmation popups
+  // stack on the desktop), so it keeps working even after several presses.
+  const bankHomeNode = openPath.find((n) => n.id === "bank_home");
+  if (bankHomeNode && handleBankPressClick(bankHomeNode, mouseX, mouseY)) return;
+
   const node = getClickableNodeAt(mouseX, mouseY);
   if (node) {
     if (node.id === "app_affirmations") {
-      openPath.push(spawnAffirmationPopup(node.children[0]));
+      openPath.push(spawnRandomPopup(desktopNode, [node.children[0]], {
+        text: affirmations[Math.floor(Math.random() * affirmations.length)],
+      }));
+    } else if (node.id === "app_bank") {
+      bankBalance = randomBankBalance(); // fresh balance every time it's opened
+      openPath.push(...node.children);
     } else {
       openPath.push(...node.children);
     }
