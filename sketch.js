@@ -71,7 +71,23 @@ let images = {
               },
               { path: "computer/app_borders.png", coordinates_by_percentage: [65.7, 55.7], scale: APP_SIZE },
               { path: "computer/app_camera.png", coordinates_by_percentage: [66.8, 29.7], scale: APP_SIZE },
-              { path: "computer/app_wizard.png", coordinates_by_percentage: [53.2, 48.5], scale: APP_SIZE },
+              {
+                path: "computer/app_wizard.png", coordinates_by_percentage: [53.2, 48.5], scale: APP_SIZE, shake: true,
+                children: [
+                  {
+                    // See the "WIZARD MINIGAME" section further down for how
+                    // the falling pieces, score, and wizard cursor work —
+                    // this node is just the game's background/play area.
+                    // wizardgamebackground.png hasn't been through the
+                    // pre-shrink pass the other images have (native
+                    // 1006x1238), so 0.6 is a real, deliberately picked
+                    // display scale, not a stand-in for 1.
+                    id: "wizardgame", path: "wizard/wizardgamebackground.png",
+                    coordinates_by_percentage: [50, 50], scale: 0.6,
+                    do_dark_background: true,
+                  },
+                ],
+              },
               // app_file.png is reused for multiple items, so its id must be given explicitly to avoid duplicates.
               { id: "app_file1", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 30.2], scale: 1 },
               { id: "app_file2", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 45.2], scale: 1 },
@@ -927,6 +943,204 @@ function drawCoffeeCounter() {
   }
 }
 
+// -------------------- WIZARD MINIGAME --------------------
+// Clicking app_wizard opens wizardgame (a single do_dark_background layer,
+// the same trick bank_home/coffeecounter use) and starts a "catch the
+// falling pieces" game: pieces spawn at the top of the background and fall
+// within its bounds, faster and more often the longer the game runs,
+// ramping up over WIZARD_RAMP_MS and then holding steady. Clicking a piece
+// scores a point; letting one reach the bottom resets the score to zero.
+// While playing, the mouse cursor is replaced by wizardhimself.png — free to
+// roam the whole desktop (unlike the pieces) — positioned so the star at
+// the tip of his wand sits exactly on the real cursor position.
+
+const WIZARD_PIECE_SCALE = 0.5;
+// The art has a "THE WIZARD" title band painted across the top of the
+// background — pieces spawn (and the score sits) just below it, in the sky,
+// rather than on top of that band.
+const WIZARD_PLAY_TOP_INSET = 0.13;
+const WIZARD_CURSOR_SCALE = 0.4;
+// Pixel offset (in wizardhimself.png's own, unscaled space) of the star at
+// the tip of his wand, measured from the source image — this is the
+// cursor's hotspot, not the image's top-left corner.
+const WIZARD_STAR_OFFSET = { x: 286.8, y: 50.6 };
+
+const WIZARD_RAMP_MS = 120000; // 2 minutes to reach full difficulty, then it holds steady
+const WIZARD_MIN_FALL_SPEED = 60; // px/sec
+const WIZARD_MAX_FALL_SPEED = 520; // px/sec
+const WIZARD_MIN_SPAWN_INTERVAL_MS = 1400;
+const WIZARD_MAX_SPAWN_INTERVAL_MS = 200;
+// The background art has decorative borders down its left and right edges —
+// pieces spawn inset from them by this fraction of the background's width.
+const WIZARD_SPAWN_SIDE_MARGIN = 0.03;
+
+const WIZARD_LOSS_FREEZE_MS = 2500;
+const WIZARD_LOSS_FLASH_PULSES = 3;
+
+const WIZARD_FOLDER = IMAGES_FOLDER + "wizard/";
+const wizardImageCache = {};
+function wizardImage(filename) {
+  if (!wizardImageCache[filename]) {
+    const img = new Image();
+    img.onerror = () => pushError(`Missing image: ${WIZARD_FOLDER}${filename}.png`);
+    img.src = `${WIZARD_FOLDER}${filename}.png`;
+    wizardImageCache[filename] = img;
+  }
+  return wizardImageCache[filename];
+}
+const WIZARD_PIECE_FILENAMES = ["fallingpiece1", "fallingpiece2", "fallingpiece3", "fallingpiece4", "fallingpiece5"];
+["wizardhimself", ...WIZARD_PIECE_FILENAMES].forEach(wizardImage);
+
+let wizardScore = 0;
+let wizardPieces = []; // { img, x, y, w, h } — x/y are the piece's top-left, in canvas pixels
+let wizardGameStart = 0;
+let wizardLastFrameTime = 0;
+let wizardNextSpawnAt = 0;
+// While performance.now() is under this, a loss is being shown: pieces and
+// the cursor hold still and the wizard flashes — see updateWizardGame and
+// drawWizardCursor.
+let wizardFreezeUntil = 0;
+let wizardLossFlashStart = 0;
+// Snapshot of the cursor's on-screen position at the moment of a loss, so
+// the wizard can be redrawn there (frozen) instead of following the mouse.
+let wizardFreezeCursorPos = null;
+
+// Called when app_wizard is opened, so every session starts fresh.
+function resetWizardGame() {
+  wizardScore = 0;
+  wizardPieces = [];
+  wizardGameStart = performance.now();
+  wizardLastFrameTime = 0;
+  wizardNextSpawnAt = wizardGameStart + WIZARD_MIN_SPAWN_INTERVAL_MS;
+  wizardFreezeUntil = 0;
+  wizardLossFlashStart = 0;
+  wizardFreezeCursorPos = null;
+}
+
+function wizardGameRect(node) {
+  const w = node.img.width * node.scale;
+  const h = node.img.height * node.scale;
+  const { x, y } = topLeftFor(node.coordinates_by_percentage, w, h);
+  return { x, y, w, h };
+}
+
+function wizardDifficulty(now) {
+  return Math.min(1, (now - wizardGameStart) / WIZARD_RAMP_MS);
+}
+
+function spawnWizardPiece(rect) {
+  const filename = WIZARD_PIECE_FILENAMES[Math.floor(Math.random() * WIZARD_PIECE_FILENAMES.length)];
+  const img = wizardImage(filename);
+  const w = img.width * WIZARD_PIECE_SCALE;
+  const h = img.height * WIZARD_PIECE_SCALE;
+  const marginX = rect.w * WIZARD_SPAWN_SIDE_MARGIN;
+  const minX = rect.x + marginX;
+  const maxX = rect.x + rect.w - marginX - w;
+  const x = minX + Math.random() * Math.max(0, maxX - minX);
+  wizardPieces.push({ img, x, y: rect.y + rect.h * WIZARD_PLAY_TOP_INSET, w, h });
+}
+
+// Advances falling pieces, spawns new ones on schedule, and resets the score
+// if one reached the bottom — called once per frame while wizardgame is the
+// open layer. On a loss, everything (including the piece that just fell
+// through) freezes in place for WIZARD_LOSS_FREEZE_MS instead of being
+// removed immediately, so drawWizardCursor's flash has something frozen to
+// show alongside it.
+function updateWizardGame(node) {
+  const now = performance.now();
+  if (wizardLastFrameTime === 0) wizardLastFrameTime = now;
+  const dtSeconds = (now - wizardLastFrameTime) / 1000;
+  wizardLastFrameTime = now;
+
+  if (now < wizardFreezeUntil) return;
+
+  const rect = wizardGameRect(node);
+  const difficulty = wizardDifficulty(now);
+  const fallSpeed = WIZARD_MIN_FALL_SPEED + (WIZARD_MAX_FALL_SPEED - WIZARD_MIN_FALL_SPEED) * difficulty;
+  const spawnInterval = WIZARD_MIN_SPAWN_INTERVAL_MS + (WIZARD_MAX_SPAWN_INTERVAL_MS - WIZARD_MIN_SPAWN_INTERVAL_MS) * difficulty;
+
+  if (now >= wizardNextSpawnAt) {
+    spawnWizardPiece(rect);
+    wizardNextSpawnAt = now + spawnInterval;
+  }
+
+  wizardPieces.forEach((piece) => { piece.y += fallSpeed * dtSeconds; });
+
+  const bottom = rect.y + rect.h;
+  if (wizardPieces.some((piece) => piece.y + piece.h >= bottom)) {
+    wizardScore = 0;
+    wizardFreezeUntil = now + WIZARD_LOSS_FREEZE_MS;
+    wizardLossFlashStart = now;
+    wizardFreezeCursorPos = { x: mouseX, y: mouseY };
+    return; // skip the filter below so the pieces stay put during the freeze
+  }
+  wizardPieces = wizardPieces.filter((piece) => piece.y + piece.h < bottom);
+}
+
+// Draws the falling pieces and the score, in the same handwriting font the
+// bank balance uses, inset into the background's own top-right corner.
+function drawWizardGame(node) {
+  updateWizardGame(node);
+
+  wizardPieces.forEach((piece) => {
+    if (!piece.img.complete || piece.img.naturalWidth === 0) return;
+    ctx.drawImage(piece.img, piece.x, piece.y, piece.w, piece.h);
+  });
+
+  const rect = wizardGameRect(node);
+  ctx.save();
+  ctx.fillStyle = "black";
+  ctx.font = "34px Handwriting, cursive";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "top";
+  ctx.fillText(String(wizardScore), rect.x + rect.w - 70, rect.y + rect.h * WIZARD_PLAY_TOP_INSET + 8);
+  ctx.restore();
+}
+
+// The wizard stands in for the mouse pointer everywhere on the desktop (not
+// just inside the game's own background) while the game is open, drawn on
+// top of everything else, the same way the carried coffee mug is. During
+// the post-loss freeze it holds at wherever it was when the loss happened
+// (wizardFreezeCursorPos) instead of following the mouse, and blinks
+// on/off a few times to read as a "you lost" flash.
+function drawWizardCursor() {
+  if (openPath[openPath.length - 1].id !== "wizardgame") return;
+
+  const now = performance.now();
+  const frozen = now < wizardFreezeUntil;
+
+  if (frozen) {
+    const pulseDuration = WIZARD_LOSS_FREEZE_MS / (WIZARD_LOSS_FLASH_PULSES * 2);
+    const elapsed = now - wizardLossFlashStart;
+    const visible = Math.floor(elapsed / pulseDuration) % 2 === 0;
+    if (!visible) return;
+  }
+
+  const img = wizardImage("wizardhimself");
+  if (!img.complete || img.naturalWidth === 0) return;
+
+  const w = img.width * WIZARD_CURSOR_SCALE;
+  const h = img.height * WIZARD_CURSOR_SCALE;
+  const pos = frozen && wizardFreezeCursorPos ? wizardFreezeCursorPos : { x: mouseX, y: mouseY };
+  const x = pos.x - WIZARD_STAR_OFFSET.x * WIZARD_CURSOR_SCALE;
+  const y = pos.y - WIZARD_STAR_OFFSET.y * WIZARD_CURSOR_SCALE;
+
+  ctx.drawImage(img, x, y, w, h);
+}
+
+// Scores a point and removes the piece if the click landed on one; a miss
+// is a no-op. Closing the game itself is handled by the generic click logic
+// in the mousedown handler below, the same as every other app.
+function handleWizardGameClick(x, y) {
+  const hitPiece = wizardPieces.find(
+    (piece) => x >= piece.x && x <= piece.x + piece.w && y >= piece.y && y <= piece.y + piece.h
+  );
+  if (hitPiece) {
+    wizardPieces = wizardPieces.filter((piece) => piece !== hitPiece);
+    wizardScore += 1;
+  }
+}
+
 // -------------------- DRAW LOOP --------------------
 
 function draw() {
@@ -960,6 +1174,7 @@ function draw() {
       if (node.text) safeTry(`affirmation text: ${node.id}`, () => drawAffirmationText(node));
       if (node.id === "coffeecounter") safeTry("coffee counter", drawCoffeeCounter);
       if (node.id === "bank_home") safeTry("bank balance", () => drawBankBalance(node));
+      if (node.id === "wizardgame") safeTry("wizard game", () => drawWizardGame(node));
 
       node.children.forEach((child) => {
         if (hidden.has(child.id) || !child.img) return;
@@ -968,6 +1183,7 @@ function draw() {
     });
 
     safeTry("carried mug", drawCarriedMug);
+    safeTry("wizard cursor", drawWizardCursor);
     drawErrors();
   } catch (err) {
     pushError(`FATAL DRAW LOOP: ${err.message}`);
@@ -992,6 +1208,13 @@ canvas.addEventListener("mousemove", (e) => {
     return;
   }
 
+  // The wizard game replaces the system cursor entirely with the wizard
+  // sprite (drawn in drawWizardCursor), so the native cursor stays hidden.
+  if (openPath[openPath.length - 1].id === "wizardgame") {
+    canvas.style.cursor = "none";
+    return;
+  }
+
   const clickable = getClickableNodeAt(mouseX, mouseY);
   canvas.style.cursor = clickable ? "pointer" : "default";
 });
@@ -1010,6 +1233,15 @@ function copyClickCoordinates(x, y) {
 
 canvas.addEventListener("mousedown", () => {
   const topNode = openPath[openPath.length - 1];
+
+  // The wizard game has its own click handling (score a hit, or quit only
+  // once the click is outside the desktop) instead of the generic
+  // one-level-per-click popup closing used everywhere else.
+  if (topNode.id === "wizardgame") {
+    handleWizardGameClick(mouseX, mouseY);
+    return;
+  }
+
   if (topNode.id === "coffeecounter") {
     const w = topNode.img.width * topNode.scale;
     const h = topNode.img.height * topNode.scale;
@@ -1045,6 +1277,9 @@ canvas.addEventListener("mousedown", () => {
       }));
     } else if (node.id === "app_bank") {
       bankBalance = randomBankBalance(); // fresh balance every time it's opened
+      openPath.push(...node.children);
+    } else if (node.id === "app_wizard") {
+      resetWizardGame(); // fresh score/pieces every time it's opened
       openPath.push(...node.children);
     } else {
       openPath.push(...node.children);
