@@ -63,8 +63,8 @@ let images = {
                     // as clone stencils for spawned dollar bills.
                     hide: ["dollar_template1", "dollar_template2"],
                     children: [
-                      { id: "dollar_template1", path: "computer/dollar1.png", coordinates_by_percentage: [50, 50], scale: 0.22 },
-                      { id: "dollar_template2", path: "computer/dollar2.png", coordinates_by_percentage: [50, 50], scale: 0.25 },
+                      { id: "dollar_template1", path: "computer/dollar1.png", coordinates_by_percentage: [50, 50], scale: 0.242 },
+                      { id: "dollar_template2", path: "computer/dollar2.png", coordinates_by_percentage: [50, 50], scale: 0.275 },
                     ],
                   },
                 ],
@@ -510,7 +510,7 @@ function handleBankPressClick(bankHomeNode, x, y) {
 
   bankBalance += 1;
   const dollarTemplates = bankHomeNode.children.filter((c) => c.id.startsWith("dollar_template"));
-  openPath.push(spawnRandomPopup(bankHomeNode, dollarTemplates));
+  openPath.push(spawnRandomPopup(desktopNode, dollarTemplates));
   return true;
 }
 
