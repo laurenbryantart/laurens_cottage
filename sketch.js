@@ -224,7 +224,12 @@ handwritingFont.load()
 // not just the most recent one. A node's `hide` list removes specific ids
 // from that set while the node is showing.
 // Clicking outside the most-recently-opened popup's bounds pops back one
-// level — same rule at every depth.
+// level — same rule at every depth. Exception: nodes spawned by
+// spawnRandomPopup (affirmation popups, dollar bills) are marked `stacked` —
+// clicking anywhere outside the desktop while any of those are on top pops
+// all of them at once instead of just one (see the mousedown handler),
+// since one-by-one would otherwise take as many clicks as there are popups
+// to get back out.
 
 let openPath = [root];
 
@@ -455,6 +460,10 @@ function spawnRandomPopup(container, templates, extra = {}) {
     scale: template.scale,
     children: [],
     hide: [],
+    // Marks this as one of a pile of clones stacking on the desktop, so a
+    // click outside the desktop can clear the whole pile at once — see the
+    // note above `openPath`.
+    stacked: true,
     ...extra,
   };
 }
@@ -1473,6 +1482,23 @@ canvas.addEventListener("mousedown", () => {
   // stack on the desktop), so it keeps working even after several presses.
   const bankHomeNode = openPath.find((n) => n.id === "bank_home");
   if (bankHomeNode && handleBankPressClick(bankHomeNode, mouseX, mouseY)) return;
+
+  // A pile of stacked clones (affirmation popups or dollar bills) can still
+  // be closed one at a time by clicking just outside the topmost one (the
+  // fallback further down handles that) — but clicking anywhere outside the
+  // desktop entirely clears the whole pile in one click, landing back at
+  // whatever was open right beneath it (the desktop itself for affirmations,
+  // bank_home for the bank), instead of needing one click per popup.
+  if (openPath[openPath.length - 1].stacked) {
+    const w = desktopNode.img.width * desktopNode.scale;
+    const h = desktopNode.img.height * desktopNode.scale;
+    const { x, y } = topLeftFor(desktopNode.coordinates_by_percentage, w, h);
+    const insideDesktop = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h;
+    if (!insideDesktop) {
+      while (openPath.length > 1 && openPath[openPath.length - 1].stacked) openPath.pop();
+      return;
+    }
+  }
 
   const node = getClickableNodeAt(mouseX, mouseY);
   if (node) {
