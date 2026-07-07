@@ -779,6 +779,20 @@ let lastCoffeeMug = null;
 const CARRIED_MUG_SCALE = 0.46875;
 const CARRIED_MUG_OFFSET = { x: 26, y: -34 };
 
+// Double-clicking anywhere in the main room (not inside any popup/minigame —
+// see the dblclick listener further down) sets the carried mug down at that
+// spot instead of it following the cursor — it then just sits there as a
+// fixed room prop, same scale as while it was carried. Only one mug can be
+// set down at a time; setting down again (or picking up a fresh one at the
+// coffee counter) replaces whichever was there before.
+let placedMug = null; // { kind: "mug", mugType, state, topping, scale, x, y } — x/y are canvas pixels (center)
+
+function setDownCarriedMug(x, y) {
+  if (!lastCoffeeMug) return;
+  placedMug = { kind: "mug", mugType: lastCoffeeMug.mugType, state: lastCoffeeMug.state, topping: lastCoffeeMug.topping, scale: lastCoffeeMug.scale, x, y };
+  lastCoffeeMug = null;
+}
+
 // Whichever coffeeItems entry is currently stuck to the mouse. Null when
 // nothing is held.
 let heldItem = null;
@@ -956,6 +970,24 @@ function drawCarriedMug() {
 
   ctx.drawImage(img, x, y, w, h);
   drawMugTopping(lastCoffeeMug, x, y, w, h, CARRIED_MUG_SCALE / lastCoffeeMug.scale);
+}
+
+// Draws the mug set down via setDownCarriedMug, centered on wherever it was
+// double-clicked down — same size it was carried at, just no longer glued to
+// the cursor.
+function drawPlacedMug() {
+  if (!placedMug) return;
+
+  const img = coffeeImage(itemImagePath(placedMug));
+  if (!img.complete || img.naturalWidth === 0) return;
+
+  const w = img.width * CARRIED_MUG_SCALE;
+  const h = img.height * CARRIED_MUG_SCALE;
+  const x = placedMug.x - w / 2;
+  const y = placedMug.y - h / 2;
+
+  ctx.drawImage(img, x, y, w, h);
+  drawMugTopping(placedMug, x, y, w, h, CARRIED_MUG_SCALE / placedMug.scale);
 }
 
 function drawCoffeeCounter() {
@@ -1376,6 +1408,11 @@ function draw() {
         if (hidden.has(child.id) || !child.img) return;
         safeDrawImage(child.img, child.coordinates_by_percentage, child.scale, child.id, child.shake && isActiveLayer ? shakeAngleRadians(child.id) : 0);
       });
+
+      // Drawn as part of the room layer (rather than always-on-top like
+      // drawCarriedMug) so it dims/gets covered correctly once a popup opens
+      // on top of the room, same as any other room prop.
+      if (node.id === "room_background") safeTry("placed mug", drawPlacedMug);
     });
 
     safeTry("carried mug", drawCarriedMug);
@@ -1537,4 +1574,14 @@ canvas.addEventListener("mousedown", () => {
     mouseY >= y && mouseY <= y + h;
 
   if (openPath.length > 1 && !inside) closePopup(); // go back one level in the popup chain
+});
+
+// Double-clicking sets the carried coffee mug down on the spot — only while
+// standing in the main room itself (openPath.length === 1), not inside the
+// laptop, coffee counter, or any other popup/minigame.
+canvas.addEventListener("dblclick", (e) => {
+  if (openPath.length > 1) return;
+
+  const rect = canvas.getBoundingClientRect();
+  setDownCarriedMug(e.clientX - rect.left, e.clientY - rect.top);
 });
