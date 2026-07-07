@@ -110,8 +110,22 @@ let images = {
       // journal.png hasn't been through the pre-shrink pass the other props
       // have (native 337x342), so 0.38 is a real, deliberately picked
       // display scale, not a stand-in for 1 — sized and placed by eye to
-      // rest on the desk's left side, in front of the laptop.
-      { id: "journal", path: "journal/journal.png", coordinates_by_percentage: [44, 30], scale: 0.38 },
+      // rest on the desk's left side, in front of the laptop. Clicking it
+      // opens journalpopup — see the "JOURNAL MECHANIC" section further
+      // down for how the entries/paper cycling work.
+      {
+        id: "journal", path: "journal/journal.png", coordinates_by_percentage: [43, 28], scale: 0.38, shake: true,
+        children: [
+          {
+            // "journnal popup background.png" (typo is in the actual
+            // filename) hasn't been pre-shrunk either (native 1056x921),
+            // so 0.9 is a deliberately picked display scale.
+            id: "journalpopup", path: "journal/journnal popup background.png",
+            coordinates_by_percentage: [50, 50], scale: 0.9,
+            do_dark_background: true,
+          },
+        ],
+      },
 
       { path: "main_room/teapot.png", coordinates_by_percentage: [91.5, 40], scale: 1 },
       { path: "main_room/notes.png", coordinates_by_percentage: [93.2, 35], scale: 1 },
@@ -1168,6 +1182,112 @@ function handleWizardGameClick(x, y) {
   }
 }
 
+// -------------------- JOURNAL MECHANIC --------------------
+// Clicking journal opens journalpopup (a single do_dark_background layer,
+// the same trick bank_home/coffeecounter/wizardgame use). Its left page is
+// blank in the art itself — a loose sheet of journal_paper1/2/3.png is drawn
+// on top of it there, cycling 1 -> 2 -> 3 -> 1... on every click, with the
+// current JOURNAL_ENTRIES entry's text drawn on top of that. Entries show
+// highest-numbered (most recently written) first, counting down to entry 1
+// and then looping back to the top — independent of the paper art's own
+// 1/2/3 cycle. Closing the popup is handled by the generic click logic in
+// the mousedown handler below, the same as every other app.
+
+const JOURNAL_FOLDER = IMAGES_FOLDER + "journal/";
+const journalImageCache = {};
+function journalImage(filename) {
+  if (!journalImageCache[filename]) {
+    const img = new Image();
+    img.onerror = () => pushError(`Missing image: ${JOURNAL_FOLDER}${filename}.png`);
+    img.src = `${JOURNAL_FOLDER}${filename}.png`;
+    journalImageCache[filename] = img;
+  }
+  return journalImageCache[filename];
+}
+const JOURNAL_PAPER_FILENAMES = ["journal_paper1", "journal_paper2", "journal_paper3"];
+JOURNAL_PAPER_FILENAMES.forEach(journalImage);
+
+// Add entries here in writing order (entry 1 first, entry 2 next, ...) —
+// the journal itself shows them in reverse (see resetJournal/
+// handleJournalClick below), so the last one written is always what comes
+// up first. Keep each one short enough to fit the font size in
+// drawJournal — there's no truncation/scrolling.
+const JOURNAL_ENTRIES = [
+  "Entry 1 — replace this with your first journal entry.",
+  "Entry 2 — replace this with your second journal entry.",
+  "Entry 3 — replace this with your third journal entry.",
+];
+
+// Where the loose paper sits on journalpopup's own blank left page, in the
+// popup art's native pixel space (1056x921) — scaled by whatever
+// journalpopup's own on-canvas scale ends up being, the same way
+// WIZARD_STAR_OFFSET scales with WIZARD_CURSOR_SCALE.
+const JOURNAL_PAGE_RECT = { x: 80, y: 120, w: 430, h: 610 };
+
+let journalEntryIndex = 0; // counts down from JOURNAL_ENTRIES.length - 1
+let journalPaperIndex = 0; // cycles through JOURNAL_PAPER_FILENAMES
+
+// Called when journal is opened, so it always starts on the most recent entry.
+function resetJournal() {
+  journalEntryIndex = JOURNAL_ENTRIES.length - 1;
+  journalPaperIndex = 0;
+}
+
+function journalPageRect(node) {
+  const w = node.img.width * node.scale;
+  const h = node.img.height * node.scale;
+  const { x, y } = topLeftFor(node.coordinates_by_percentage, w, h);
+  return {
+    x: x + JOURNAL_PAGE_RECT.x * node.scale,
+    y: y + JOURNAL_PAGE_RECT.y * node.scale,
+    w: JOURNAL_PAGE_RECT.w * node.scale,
+    h: JOURNAL_PAGE_RECT.h * node.scale,
+  };
+}
+
+// Draws the current loose paper (cycling 1/2/3) "contain"-fitted into the
+// popup's left page — scaled to fit within the page rect while keeping its
+// own aspect ratio, then centered there — with the current journal entry's
+// text on top, sized to take up most of the sheet.
+function drawJournal(node) {
+  const rect = journalPageRect(node);
+
+  const paperImg = journalImage(JOURNAL_PAPER_FILENAMES[journalPaperIndex]);
+  if (!paperImg.complete || paperImg.naturalWidth === 0) return;
+
+  const fitScale = Math.min(rect.w / paperImg.width, rect.h / paperImg.height);
+  const pw = paperImg.width * fitScale;
+  const ph = paperImg.height * fitScale;
+  const px = rect.x + (rect.w - pw) / 2;
+  const py = rect.y + (rect.h - ph) / 2;
+  ctx.drawImage(paperImg, px, py, pw, ph);
+
+  if (!JOURNAL_ENTRIES.length) return;
+
+  const marginX = pw * 0.12;
+  const marginTop = ph * 0.1;
+  ctx.save();
+  ctx.fillStyle = "black";
+  ctx.font = "28px Handwriting, cursive";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+
+  const lines = wrapText(JOURNAL_ENTRIES[journalEntryIndex], pw - marginX * 2);
+  const lineHeight = 34;
+  const startY = py + marginTop + lineHeight / 2;
+
+  lines.forEach((line, i) => ctx.fillText(line, px + marginX, startY + i * lineHeight));
+  ctx.restore();
+}
+
+// Advances the paper (1 -> 2 -> 3 -> 1...) and descends the entry shown
+// (looping back to the top once it passes entry 1) on every click inside
+// the popup.
+function handleJournalClick() {
+  journalPaperIndex = (journalPaperIndex + 1) % JOURNAL_PAPER_FILENAMES.length;
+  journalEntryIndex = journalEntryIndex <= 0 ? JOURNAL_ENTRIES.length - 1 : journalEntryIndex - 1;
+}
+
 // -------------------- DRAW LOOP --------------------
 
 function draw() {
@@ -1202,6 +1322,7 @@ function draw() {
       if (node.id === "coffeecounter") safeTry("coffee counter", drawCoffeeCounter);
       if (node.id === "bank_home") safeTry("bank balance", () => drawBankBalance(node));
       if (node.id === "wizardgame") safeTry("wizard game", () => drawWizardGame(node));
+      if (node.id === "journalpopup") safeTry("journal", () => drawJournal(node));
 
       node.children.forEach((child) => {
         if (hidden.has(child.id) || !child.img) return;
@@ -1276,6 +1397,17 @@ canvas.addEventListener("mousedown", () => {
     }
   }
 
+  if (topNode.id === "journalpopup") {
+    const w = topNode.img.width * topNode.scale;
+    const h = topNode.img.height * topNode.scale;
+    const { x, y } = topLeftFor(topNode.coordinates_by_percentage, w, h);
+    const insideJournal = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h;
+    if (insideJournal) {
+      handleJournalClick();
+      return;
+    }
+  }
+
   if (topNode.id === "coffeecounter") {
     const w = topNode.img.width * topNode.scale;
     const h = topNode.img.height * topNode.scale;
@@ -1314,6 +1446,9 @@ canvas.addEventListener("mousedown", () => {
       openPath.push(...node.children);
     } else if (node.id === "app_wizard") {
       resetWizardGame(); // fresh score/pieces every time it's opened
+      openPath.push(...node.children);
+    } else if (node.id === "journal") {
+      resetJournal(); // start back on the most recent entry every time it's opened
       openPath.push(...node.children);
     } else {
       openPath.push(...node.children);
