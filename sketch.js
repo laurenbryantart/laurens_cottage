@@ -107,6 +107,12 @@ let images = {
       },
       // test
 
+      // journal.png hasn't been through the pre-shrink pass the other props
+      // have (native 337x342), so 0.38 is a real, deliberately picked
+      // display scale, not a stand-in for 1 — sized and placed by eye to
+      // rest on the desk's left side, in front of the laptop.
+      { id: "journal", path: "journal/journal.png", coordinates_by_percentage: [44, 30], scale: 0.38 },
+
       { path: "main_room/teapot.png", coordinates_by_percentage: [91.5, 40], scale: 1 },
       { path: "main_room/notes.png", coordinates_by_percentage: [93.2, 35], scale: 1 },
       { path: "main_room/paper.png", coordinates_by_percentage: [34.0, 70.3], scale: 1 },
