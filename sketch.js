@@ -1223,6 +1223,17 @@ const JOURNAL_ENTRIES = [
 // journalpopup's own on-canvas scale ends up being, the same way
 // WIZARD_STAR_OFFSET scales with WIZARD_CURSOR_SCALE.
 const JOURNAL_PAGE_RECT = { x: 80, y: 120, w: 430, h: 610 };
+// Matches the left page's own rightward perspective (the art tilts the
+// page's near edge to the right) — positive tilts the written text
+// clockwise; tweak to taste.
+const JOURNAL_TEXT_TILT_DEGREES = 4;
+// Small down-right offsets (in page-rect scale) for the other two sheets
+// peeking out from behind the current one — purely decorative, drawn
+// farthest-back first so the nearer one (and then the top sheet) overlaps it.
+const JOURNAL_BEHIND_SHEET_OFFSETS = [
+  { dx: 18, dy: 15 },
+  { dx: 9, dy: 7 },
+];
 
 let journalEntryIndex = 0; // counts down from JOURNAL_ENTRIES.length - 1
 let journalPaperIndex = 0; // cycles through JOURNAL_PAPER_FILENAMES
@@ -1252,6 +1263,20 @@ function journalPageRect(node) {
 function drawJournal(node) {
   const rect = journalPageRect(node);
 
+  // The other two sheets, peeking out from behind the current one — just
+  // set dressing, not tied to which entries are actually queued up next.
+  JOURNAL_BEHIND_SHEET_OFFSETS.forEach(({ dx, dy }, i) => {
+    const filename = JOURNAL_PAPER_FILENAMES[(journalPaperIndex + JOURNAL_BEHIND_SHEET_OFFSETS.length - i) % JOURNAL_PAPER_FILENAMES.length];
+    const img = journalImage(filename);
+    if (!img.complete || img.naturalWidth === 0) return;
+    const fitScale = Math.min(rect.w / img.width, rect.h / img.height);
+    const w = img.width * fitScale;
+    const h = img.height * fitScale;
+    const x = rect.x + (rect.w - w) / 2 + dx;
+    const y = rect.y + (rect.h - h) / 2 + dy;
+    ctx.drawImage(img, x, y, w, h);
+  });
+
   const paperImg = journalImage(JOURNAL_PAPER_FILENAMES[journalPaperIndex]);
   if (!paperImg.complete || paperImg.naturalWidth === 0) return;
 
@@ -1266,17 +1291,22 @@ function drawJournal(node) {
 
   const marginX = pw * 0.12;
   const marginTop = ph * 0.1;
+
   ctx.save();
   ctx.fillStyle = "black";
   ctx.font = "28px Handwriting, cursive";
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
 
+  // wrapText measures with ctx.font, so it must be set (above) before this call.
   const lines = wrapText(JOURNAL_ENTRIES[journalEntryIndex], pw - marginX * 2);
   const lineHeight = 34;
-  const startY = py + marginTop + lineHeight / 2;
 
-  lines.forEach((line, i) => ctx.fillText(line, px + marginX, startY + i * lineHeight));
+  // Rotate the whole text block around its own top-left corner, so it
+  // tilts to match the page's perspective instead of the canvas's.
+  ctx.translate(px + marginX, py + marginTop);
+  ctx.rotate(JOURNAL_TEXT_TILT_DEGREES * Math.PI / 180);
+  lines.forEach((line, i) => ctx.fillText(line, 0, lineHeight / 2 + i * lineHeight));
   ctx.restore();
 }
 
