@@ -68,8 +68,15 @@ let images = {
                     // The balance readout and PRESS button are baked into
                     // this art, not separate nodes — see the "BANK APP"
                     // section further down for how clicks on them work.
+                    // bank_home.png was replaced with a cleaned-up-edges
+                    // version at a different native resolution (837x1187 ->
+                    // 660x964, and not quite the same aspect ratio) — 0.6124
+                    // is the recomputed scale that keeps its on-screen
+                    // footprint matching the old art as closely as a single
+                    // uniform scale can (it's the average of the width-
+                    // matching and height-matching ratios, ~1.5% off each).
                     id: "bank_home", path: "computer/bank_home.png",
-                    coordinates_by_percentage: [50, 50], scale: 0.49,
+                    coordinates_by_percentage: [50, 50], scale: 0.6124,
                     do_dark_background: true,
                     // Keeps these two templates from also rendering
                     // statically at their own placeholder coordinates
