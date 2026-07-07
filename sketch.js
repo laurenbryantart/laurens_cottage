@@ -898,10 +898,12 @@ function drawMugTopping(mug, x, y, w, h, sizeRatio = 1) {
 // The last mug you interacted with (see lastCoffeeMug above) follows the
 // cursor everywhere except while the coffee counter itself is open — there,
 // it's already visible sitting on the counter, so drawing it twice would
-// just look broken.
+// just look broken — and while the wizard game is open, where the wizard
+// sprite is the cursor companion instead.
 function drawCarriedMug() {
   if (!lastCoffeeMug) return;
   if (openPath[openPath.length - 1].id === "coffeecounter") return;
+  if (openPath[openPath.length - 1].id === "wizardgame") return;
 
   const img = coffeeImage(itemImagePath(lastCoffeeMug));
   if (!img.complete || img.naturalWidth === 0) return;
@@ -1009,8 +1011,9 @@ let wizardLossFlashStart = 0;
 // the wizard can be redrawn there (frozen) instead of following the mouse.
 let wizardFreezeCursorPos = null;
 // True from the moment a loss freeze starts until the frame the freeze
-// lifts — that frame clears out the piece(s) that fell through before
-// resuming normal falling, so they don't just re-trigger the freeze forever.
+// lifts — that frame clears every falling piece (not just the one that fell
+// through) so the board starts empty on the next attempt, instead of
+// leaving a pile already sitting near the bottom.
 let wizardPendingClearOnUnfreeze = false;
 
 // Called when app_wizard is opened, so every session starts fresh.
@@ -1065,11 +1068,10 @@ function updateWizardGame(node) {
 
   const rect = wizardGameRect(node);
 
-  // The freeze just lifted: drop whatever fell through before it froze, so
-  // it doesn't immediately re-trigger the bottom check below forever.
+  // The freeze just lifted: clear the whole board so the next attempt
+  // starts fresh instead of already stacked near the bottom.
   if (wizardPendingClearOnUnfreeze) {
-    const bottom = rect.y + rect.h;
-    wizardPieces = wizardPieces.filter((piece) => piece.y + piece.h < bottom);
+    wizardPieces = [];
     wizardPendingClearOnUnfreeze = false;
   }
 
@@ -1227,10 +1229,11 @@ canvas.addEventListener("mousemove", (e) => {
     return;
   }
 
-  // The wizard game replaces the system cursor entirely with the wizard
-  // sprite (drawn in drawWizardCursor), so the native cursor stays hidden.
+  // The wizard sprite (drawn in drawWizardCursor) follows the mouse as a
+  // companion, but the native cursor stays visible too so it's easy to see
+  // exactly where the pointer is.
   if (openPath[openPath.length - 1].id === "wizardgame") {
-    canvas.style.cursor = "none";
+    canvas.style.cursor = "default";
     return;
   }
 
