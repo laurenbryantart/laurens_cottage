@@ -216,6 +216,7 @@ function findNodeById(node, id) {
 
 const desktopNode = findNodeById(root, "desktop");
 const calendarNode = findNodeById(root, "calendar");
+const alertNode = findNodeById(root, "alert_compromised_wizard");
 
 // -------------------- FONTS --------------------
 
@@ -1473,12 +1474,47 @@ function draw() {
 
 draw();
 
+// -------------------- DESKTOP ALERT (DRAGGABLE) --------------------
+// The "compromised" alert on the desktop has no children of its own — it's
+// not clickable/closeable via the normal popup tree — but it can be dragged
+// around by the mouse, confined to the desktop's own image bounds, purely as
+// a fun detail. It never shakes (no `shake: true` on its tree node).
+
+let draggingAlert = false;
+let alertDragOffset = { x: 0, y: 0 }; // mouse position minus the alert's center, in canvas pixels
+
+function desktopRect() {
+  const w = desktopNode.img.width * desktopNode.scale;
+  const h = desktopNode.img.height * desktopNode.scale;
+  const { x, y } = topLeftFor(desktopNode.coordinates_by_percentage, w, h);
+  return { x, y, w, h };
+}
+
+// x/y is the current mouse position — alertDragOffset (captured on
+// mousedown) keeps the alert from jumping to center on the cursor.
+function dragAlertTo(x, y) {
+  const rect = desktopRect();
+  const w = alertNode.img.width * alertNode.scale;
+  const h = alertNode.img.height * alertNode.scale;
+  const targetX = x - alertDragOffset.x;
+  const targetY = y - alertDragOffset.y;
+  const cx = Math.min(Math.max(targetX, rect.x + w / 2), rect.x + rect.w - w / 2);
+  const cy = Math.min(Math.max(targetY, rect.y + h / 2), rect.y + rect.h - h / 2);
+  alertNode.coordinates_by_percentage = pixelsToPercentage(cx, cy);
+}
+
 // -------------------- EVENTS --------------------
 
 canvas.addEventListener("mousemove", (e) => {
   const rect = canvas.getBoundingClientRect();
   mouseX = e.clientX - rect.left;
   mouseY = e.clientY - rect.top;
+
+  if (draggingAlert) {
+    dragAlertTo(mouseX, mouseY);
+    canvas.style.cursor = "grabbing";
+    return;
+  }
 
   // The coffee counter has its own click handling below, so it gets its own
   // (simpler) cursor rule too: always a pointer while it's open.
@@ -1492,6 +1528,11 @@ canvas.addEventListener("mousemove", (e) => {
   // exactly where the pointer is.
   if (openPath[openPath.length - 1].id === "wizardgame") {
     canvas.style.cursor = "default";
+    return;
+  }
+
+  if (openPath[openPath.length - 1].id === "desktop" && hitTest(alertNode, mouseX, mouseY)) {
+    canvas.style.cursor = "grab";
     return;
   }
 
@@ -1513,6 +1554,17 @@ function copyClickCoordinates(x, y) {
 
 canvas.addEventListener("mousedown", () => {
   const topNode = openPath[openPath.length - 1];
+
+  // The compromised alert is a plain decoration (no children, so never
+  // "clickable" via the generic popup tree) — clicking it just starts a
+  // drag instead of opening or closing anything. Only live while the
+  // desktop itself is the topmost layer, same as the app icons around it.
+  if (topNode.id === "desktop" && hitTest(alertNode, mouseX, mouseY)) {
+    draggingAlert = true;
+    const [xPct, yPct] = alertNode.coordinates_by_percentage;
+    alertDragOffset = { x: mouseX - (xPct / 100) * canvas.width, y: mouseY - (yPct / 100) * canvas.height };
+    return;
+  }
 
   // The calendar has no children to reveal, so it's never a "clickable" node
   // via the generic popup tree — its only job is opening the stuff-to-do
@@ -1630,6 +1682,12 @@ canvas.addEventListener("mousedown", () => {
     mouseY >= y && mouseY <= y + h;
 
   if (openPath.length > 1 && !inside) closePopup(); // go back one level in the popup chain
+});
+
+// Listens on window (not just canvas) so a drag that ends with the mouse
+// released outside the canvas still stops instead of sticking to the cursor.
+window.addEventListener("mouseup", () => {
+  draggingAlert = false;
 });
 
 // Double-clicking sets the carried coffee mug down on the spot — only while
