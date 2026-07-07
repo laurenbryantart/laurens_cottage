@@ -16,7 +16,19 @@ const affirmations = [
   "Drawing is the only thing I am good at",
   "I am one",
   "I am whole",
-  
+
+];
+
+// Add journal entries here in writing order (entry 1 first, entry 2 next,
+// ...) — the journal itself shows them in reverse (see resetJournal/
+// handleJournalClick further down, in the "JOURNAL MECHANIC" section), so
+// the last one written is always what comes up first. Keep each one short
+// enough to fit the font size in drawJournal — there's no
+// truncation/scrolling.
+const JOURNAL_ENTRIES = [
+  "July 4.                 We could only see the bottom half of the fireworks. They lit up the fog in neon colors, which was a sight to see in itself. They were shot from the Golden Gate Bridge. I shared a Long Drink with Alex.",
+  "July 5.               Spent a lot of today languishing indoors. I visited the park breifly. I climbed every hill in this city and sat at the park for 20 minutes, sliding off the grassy hill trying to draw.",
+  "July 5.               Work today like every day. Monotony eating itself and my standing desk is broken. Met Xyan at the pottery studio and made and destroyed a face.",
 ];
 
 const APP_SIZE = 1; // app icon files were shrunk to match this exact display size
@@ -1207,17 +1219,6 @@ function journalImage(filename) {
 const JOURNAL_PAPER_FILENAMES = ["journal_paper1", "journal_paper2", "journal_paper3"];
 JOURNAL_PAPER_FILENAMES.forEach(journalImage);
 
-// Add entries here in writing order (entry 1 first, entry 2 next, ...) —
-// the journal itself shows them in reverse (see resetJournal/
-// handleJournalClick below), so the last one written is always what comes
-// up first. Keep each one short enough to fit the font size in
-// drawJournal — there's no truncation/scrolling.
-const JOURNAL_ENTRIES = [
-  "Entry 1 — replace this with your first journal entry.",
-  "Entry 2 — replace this with your second journal entry.",
-  "Entry 3 — replace this with your third journal entry.",
-];
-
 // Where the loose paper sits on journalpopup's own blank left page, in the
 // popup art's native pixel space (1056x921) — scaled by whatever
 // journalpopup's own on-canvas scale ends up being, the same way
@@ -1234,6 +1235,12 @@ const JOURNAL_BEHIND_SHEET_OFFSETS = [
   { dx: 18, dy: 15 },
   { dx: 9, dy: 7 },
 ];
+// Per-paper nudge for where the text block starts, on top of the usual
+// marginX/marginTop — journal_paper3's own margin line sits further left
+// than paper1/2's, so its text needs an extra push right to line up the same.
+const JOURNAL_TEXT_OFFSET_X = {
+  journal_paper3: 15,
+};
 
 let journalEntryIndex = 0; // counts down from JOURNAL_ENTRIES.length - 1
 let journalPaperIndex = 0; // cycles through JOURNAL_PAPER_FILENAMES
@@ -1289,8 +1296,10 @@ function drawJournal(node) {
 
   if (!JOURNAL_ENTRIES.length) return;
 
-  const marginX = pw * 0.12;
+  const marginLeft = pw * 0.12;
+  const marginRight = pw * 0.06; // narrower than marginLeft so the text box's right edge sits further out
   const marginTop = ph * 0.1;
+  const offsetX = JOURNAL_TEXT_OFFSET_X[JOURNAL_PAPER_FILENAMES[journalPaperIndex]] || 0;
 
   ctx.save();
   ctx.fillStyle = "black";
@@ -1299,12 +1308,12 @@ function drawJournal(node) {
   ctx.textBaseline = "middle";
 
   // wrapText measures with ctx.font, so it must be set (above) before this call.
-  const lines = wrapText(JOURNAL_ENTRIES[journalEntryIndex], pw - marginX * 2);
+  const lines = wrapText(JOURNAL_ENTRIES[journalEntryIndex], pw - marginLeft - marginRight - offsetX);
   const lineHeight = 34;
 
   // Rotate the whole text block around its own top-left corner, so it
   // tilts to match the page's perspective instead of the canvas's.
-  ctx.translate(px + marginX, py + marginTop);
+  ctx.translate(px + marginLeft + offsetX, py + marginTop);
   ctx.rotate(JOURNAL_TEXT_TILT_DEGREES * Math.PI / 180);
   lines.forEach((line, i) => ctx.fillText(line, 0, lineHeight / 2 + i * lineHeight));
   ctx.restore();
