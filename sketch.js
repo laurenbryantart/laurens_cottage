@@ -48,7 +48,9 @@ let images = {
     children: [
       { path: "main_room/bed.png", coordinates_by_percentage: [11.3, 28], scale: 1 },
       { path: "main_room/pattern.png", coordinates_by_percentage: [50.1, 8.5], scale: 1 },
-      { path: "main_room/calendar.png", coordinates_by_percentage: [88, 8.1], scale: 1 },
+      // Its only job is linking out to the "stuff to do" page — see the
+      // calendar click handling in the mousedown listener further down.
+      { path: "main_room/calendar.png", coordinates_by_percentage: [88, 8.1], scale: 1, shake: true },
       { path: "main_room/flowers.png", coordinates_by_percentage: [91.9, 23], scale: 1 },
       { path: "main_room/books.png", coordinates_by_percentage: [32.2, 45], scale: 1 },
 
@@ -206,6 +208,7 @@ function findNodeById(node, id) {
 }
 
 const desktopNode = findNodeById(root, "desktop");
+const calendarNode = findNodeById(root, "calendar");
 
 // -------------------- FONTS --------------------
 
@@ -1502,6 +1505,16 @@ function copyClickCoordinates(x, y) {
 
 canvas.addEventListener("mousedown", () => {
   const topNode = openPath[openPath.length - 1];
+
+  // The calendar has no children to reveal, so it's never a "clickable" node
+  // via the generic popup tree — its only job is opening the stuff-to-do
+  // page in a new tab, so it's special-cased here instead, the same way the
+  // coffee counter/bank/wizard mechanics are. Only live while standing in
+  // the main room itself (nothing else open on top of it).
+  if (openPath.length === 1 && hitTest(calendarNode, mouseX, mouseY)) {
+    window.open("https://alexroginski.com/stuff_to_do/", "_blank", "noopener,noreferrer");
+    return;
+  }
 
   // A click inside the wizard game's own background scores a hit (or misses
   // harmlessly); a click outside it falls through to the generic
