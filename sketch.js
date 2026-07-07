@@ -149,7 +149,23 @@ let images = {
       },
 
       { path: "main_room/teapot.png", coordinates_by_percentage: [91.5, 40], scale: 1 },
-      { path: "main_room/notes.png", coordinates_by_percentage: [93.2, 35], scale: 1 },
+      // Opens fridgepopup — see the "FRIDGE MECHANIC" section further down
+      // for the magnets/drawer/notes that live inside it.
+      {
+        id: "notes", path: "main_room/notes.png", coordinates_by_percentage: [93.2, 35], scale: 1, shake: true,
+        children: [
+          {
+            // fridgebackground.png is 924x743 native. scale 1.2919 (=960/743)
+            // fills the canvas's full height exactly, so the top and bottom
+            // edges are both flush — the resulting ~1194px width is then
+            // right-aligned (center = canvas.width - width/2) rather than
+            // centered, per the right/top/bottom flush placement asked for.
+            id: "fridgepopup", path: "fridge/fridgebackground.png",
+            coordinates_by_percentage: [58.9, 50], scale: 1.2919,
+            do_dark_background: true,
+          },
+        ],
+      },
       { path: "main_room/paper.png", coordinates_by_percentage: [34.0, 70.3], scale: 1 },
       { path: "main_room/drawing.png", coordinates_by_percentage: [52.7, 26], scale: 1 },
       { path: "main_room/laundry.png", coordinates_by_percentage: [26, 29], scale: 1 },
@@ -217,6 +233,7 @@ function findNodeById(node, id) {
 const desktopNode = findNodeById(root, "desktop");
 const calendarNode = findNodeById(root, "calendar");
 const alertNode = findNodeById(root, "alert_compromised_wizard");
+const fridgeNode = findNodeById(root, "fridgepopup");
 
 // -------------------- FONTS --------------------
 
@@ -1415,6 +1432,301 @@ function handleJournalClick() {
   journalEntryIndex = journalEntryIndex <= 0 ? JOURNAL_ENTRIES.length - 1 : journalEntryIndex - 1;
 }
 
+// -------------------- FRIDGE MECHANIC --------------------
+// Clicking notes opens fridgepopup (a single do_dark_background layer, the
+// same trick coffeecounter/bank_home/wizardgame/journalpopup use). Inside it,
+// three independent draggable layers live outside the generic popup tree
+// (like the coffee items do): a scatter of decorative letter/shape magnets
+// stuck to the fridge door, a drawer (fridge_paper drawer.png) that peeks up
+// from the bottom of the whole screen and slides open/closed, and a set of
+// blank notes (fridge_paper1-6.png) that start scattered inside that drawer.
+// Dragging a note out and dropping it on top of a magnet sticks it to the
+// fridge door there; dropping it anywhere else just returns it to wherever it
+// came from. A single click (no real drag) on a note already on the fridge
+// opens it for typing instead of moving it.
+
+const FRIDGE_FOLDER = IMAGES_FOLDER + "fridge/";
+const fridgeImageCache = {};
+function fridgeImage(filename) {
+  if (!fridgeImageCache[filename]) {
+    const img = new Image();
+    img.onerror = () => pushError(`Missing image: ${FRIDGE_FOLDER}${filename}.png`);
+    img.src = `${FRIDGE_FOLDER}${filename}.png`;
+    fridgeImageCache[filename] = img;
+  }
+  return fridgeImageCache[filename];
+}
+
+const MAGNET_LETTER_FILENAMES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((l) => `magnet_${l}`);
+const MAGNET_DECORATIVE_FILENAMES = ["magnet_SF", "magnet_heart", "magnet_ladybug", "magnet_mermaid", "magnet_mosaic", "magnet_wizard"];
+const MAGNET_FILENAMES = [...MAGNET_LETTER_FILENAMES, ...MAGNET_DECORATIVE_FILENAMES];
+const FRIDGE_PAPER_FILENAMES = [1, 2, 3, 4, 5, 6].map((n) => `fridge_paper${n}`);
+const FRIDGE_DRAWER_FILENAME = "fridge_paper drawer"; // filename really does have a space in it
+[...MAGNET_FILENAMES, ...FRIDGE_PAPER_FILENAMES, FRIDGE_DRAWER_FILENAME].forEach(fridgeImage);
+
+const MAGNET_SCALE = 0.4;
+const NOTE_SCALE = 0.28;
+const NOTE_MAX_CHARS = 80;
+// A pickup that never moves more than this many pixels before mouseup counts
+// as a click (open the note for typing) rather than a drag (re-place it).
+const NOTE_CLICK_MOVE_THRESHOLD = 6;
+
+// fridge_paper drawer.png is a top-down look INTO an open drawer (the tan
+// band across its own top edge is the drawer's front lip, with the knob
+// poking up above that) — natively 1891x1381. Scaled to exactly fill the
+// canvas's width, so only its vertical position (fridgeDrawerY) needs to be
+// dragged; peeking at 130px when closed shows just that lip + knob, per the
+// "knob and first lip visible" ask.
+const FRIDGE_DRAWER_NATIVE_W = 1891;
+const FRIDGE_DRAWER_NATIVE_H = 1381;
+const FRIDGE_DRAWER_SCALE = canvas.width / FRIDGE_DRAWER_NATIVE_W;
+const FRIDGE_DRAWER_PEEK_PX = 130;
+
+let fridgeMagnets = null; // populated on first open by initFridgeMagnets — persists after that, like coffeeItems
+let fridgeNotes = null; // populated on first open by initFridgeNotes — persists after that
+
+let heldMagnet = null;
+let magnetDragOffset = { x: 0, y: 0 };
+
+let heldNote = null;
+let noteDragStart = { x: 0, y: 0 };
+let notePickupOrigin = null; // snapshot of the held note's location/position, to snap back to on an invalid drop
+
+let draggingDrawer = false;
+let drawerDragOffsetY = 0;
+let fridgeDrawerY = null; // null = closed (peek only); set on first drag
+
+// Whichever fridge note is currently open for typing — text types into it via
+// the keydown listener further down, until a click elsewhere closes it.
+let editingNote = null;
+
+function fridgeRect() {
+  const w = fridgeNode.img.width * fridgeNode.scale;
+  const h = fridgeNode.img.height * fridgeNode.scale;
+  const { x, y } = topLeftFor(fridgeNode.coordinates_by_percentage, w, h);
+  return { x, y, w, h };
+}
+
+function drawerRect() {
+  const h = FRIDGE_DRAWER_NATIVE_H * FRIDGE_DRAWER_SCALE;
+  const y = fridgeDrawerY === null ? canvas.height - FRIDGE_DRAWER_PEEK_PX : fridgeDrawerY;
+  return { x: 0, y, w: canvas.width, h };
+}
+
+function clampDrawerY(y) {
+  const h = FRIDGE_DRAWER_NATIVE_H * FRIDGE_DRAWER_SCALE;
+  const minY = canvas.height - h; // fully open
+  const maxY = canvas.height - FRIDGE_DRAWER_PEEK_PX; // closed
+  return Math.min(Math.max(y, minY), maxY);
+}
+
+// Scatters every magnet at a random spot inside the fridge door, once. Called
+// the first time notes is clicked, same "populate on first open, keep state
+// after that" rule coffeeItems follows.
+function initFridgeMagnets() {
+  const rect = fridgeRect();
+  const margin = 24;
+  fridgeMagnets = MAGNET_FILENAMES.map((filename) => {
+    const img = fridgeImage(filename);
+    const w = img.width * MAGNET_SCALE;
+    const h = img.height * MAGNET_SCALE;
+    const minX = rect.x + margin + w / 2;
+    const maxX = rect.x + rect.w - margin - w / 2;
+    const minY = rect.y + margin + h / 2;
+    const maxY = rect.y + rect.h - margin - h / 2;
+    const x = minX + Math.random() * Math.max(0, maxX - minX);
+    const y = minY + Math.random() * Math.max(0, maxY - minY);
+    return { id: filename, filename, scale: MAGNET_SCALE, coordinates_by_percentage: pixelsToPercentage(x, y) };
+  });
+}
+
+// Scatters every note somewhere inside the drawer's own native image space
+// (not just whatever sliver is currently visible — the user will drag the
+// drawer open to see the rest), clear of the lip/knob band across its top.
+function initFridgeNotes() {
+  const marginX = FRIDGE_DRAWER_NATIVE_W * 0.08;
+  const marginTop = FRIDGE_DRAWER_NATIVE_H * 0.18;
+  const marginBottom = FRIDGE_DRAWER_NATIVE_H * 0.04;
+  fridgeNotes = FRIDGE_PAPER_FILENAMES.map((filename, i) => ({
+    id: `note${i}`,
+    filename,
+    location: "drawer", // "drawer" | "fridge"
+    text: "",
+    coordinates_by_percentage: null, // used when location === "fridge"
+    drawerOffset: {
+      // pixels in the drawer image's own native (unscaled) space
+      x: marginX + Math.random() * (FRIDGE_DRAWER_NATIVE_W - marginX * 2),
+      y: marginTop + Math.random() * (FRIDGE_DRAWER_NATIVE_H - marginTop - marginBottom),
+    },
+  }));
+}
+
+function magnetRect(magnet) {
+  const img = fridgeImage(magnet.filename);
+  const w = img.width * magnet.scale;
+  const h = img.height * magnet.scale;
+  const { x, y } = topLeftFor(magnet.coordinates_by_percentage, w, h);
+  return { x, y, w, h };
+}
+
+function hitTestMagnet(magnet, x, y) {
+  const r = magnetRect(magnet);
+  return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+}
+
+// Held notes are drawn glued to the mouse (see drawFridgeNote), regardless of
+// their own location/drawerOffset/coordinates_by_percentage.
+function fridgeNoteScreenRect(note) {
+  const img = fridgeImage(note.filename);
+  const w = img.width * NOTE_SCALE;
+  const h = img.height * NOTE_SCALE;
+
+  if (note === heldNote) return { x: mouseX - w / 2, y: mouseY - h / 2, w, h };
+
+  if (note.location === "fridge") {
+    const [xPct, yPct] = note.coordinates_by_percentage;
+    const cx = (xPct / 100) * canvas.width;
+    const cy = (yPct / 100) * canvas.height;
+    return { x: cx - w / 2, y: cy - h / 2, w, h };
+  }
+
+  const rect = drawerRect();
+  return {
+    x: rect.x + note.drawerOffset.x * FRIDGE_DRAWER_SCALE - w / 2,
+    y: rect.y + note.drawerOffset.y * FRIDGE_DRAWER_SCALE - h / 2,
+    w,
+    h,
+  };
+}
+
+function hitTestFridgeNote(note, x, y) {
+  const r = fridgeNoteScreenRect(note);
+  return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+}
+
+function beginDragMagnet(magnet) {
+  const r = magnetRect(magnet);
+  heldMagnet = magnet;
+  magnetDragOffset = { x: mouseX - (r.x + r.w / 2), y: mouseY - (r.y + r.h / 2) };
+}
+
+function updateDraggedMagnet() {
+  const rect = fridgeRect();
+  const img = fridgeImage(heldMagnet.filename);
+  const w = img.width * heldMagnet.scale;
+  const h = img.height * heldMagnet.scale;
+  const targetX = mouseX - magnetDragOffset.x;
+  const targetY = mouseY - magnetDragOffset.y;
+  const cx = Math.min(Math.max(targetX, rect.x + w / 2), rect.x + rect.w - w / 2);
+  const cy = Math.min(Math.max(targetY, rect.y + h / 2), rect.y + rect.h - h / 2);
+  heldMagnet.coordinates_by_percentage = pixelsToPercentage(cx, cy);
+}
+
+function beginDragNote(note) {
+  heldNote = note;
+  noteDragStart = { x: mouseX, y: mouseY };
+  notePickupOrigin = {
+    location: note.location,
+    coordinates_by_percentage: note.coordinates_by_percentage,
+    drawerOffset: note.drawerOffset ? { ...note.drawerOffset } : null,
+  };
+  // Bring it to the front of the array so it's both drawn on top and wins
+  // hit-testing priority over whichever notes it may now overlap.
+  fridgeNotes = fridgeNotes.filter((n) => n !== note);
+  fridgeNotes.push(note);
+}
+
+// Called on mouseup while a note is held. A drop that never really moved is
+// treated as a click (open it for typing, leave it exactly where it was);
+// otherwise it sticks to the fridge if dropped on a magnet, returns to the
+// drawer if dropped there, or snaps back to wherever it started.
+function finalizeNoteDrop() {
+  const note = heldNote;
+  const moved = Math.hypot(mouseX - noteDragStart.x, mouseY - noteDragStart.y) > NOTE_CLICK_MOVE_THRESHOLD;
+
+  if (!moved) {
+    if (note.location === "fridge") editingNote = note;
+    return;
+  }
+
+  const dRect = drawerRect();
+  if (mouseY >= dRect.y) {
+    note.location = "drawer";
+    note.drawerOffset = {
+      x: (mouseX - dRect.x) / FRIDGE_DRAWER_SCALE,
+      y: (mouseY - dRect.y) / FRIDGE_DRAWER_SCALE,
+    };
+    return;
+  }
+
+  const magnet = fridgeMagnets.find((m) => hitTestMagnet(m, mouseX, mouseY));
+  if (magnet) {
+    note.location = "fridge";
+    note.coordinates_by_percentage = pixelsToPercentage(mouseX, mouseY);
+    return;
+  }
+
+  note.location = notePickupOrigin.location;
+  note.coordinates_by_percentage = notePickupOrigin.coordinates_by_percentage;
+  note.drawerOffset = notePickupOrigin.drawerOffset;
+}
+
+// Draws a note at its current screen rect, plus whatever's been typed on it
+// (and a blinking cursor while it's the one being edited) — same handwriting
+// font the journal/affirmations use, sized down to fit the note.
+function drawFridgeNote(note) {
+  const img = fridgeImage(note.filename);
+  if (!img.complete || img.naturalWidth === 0) return;
+
+  const { x, y, w, h } = fridgeNoteScreenRect(note);
+  ctx.drawImage(img, x, y, w, h);
+
+  if (!note.text && editingNote !== note) return;
+
+  ctx.save();
+  ctx.fillStyle = "black";
+  ctx.font = "16px Handwriting, cursive";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  const marginX = w * 0.18;
+  const marginY = h * 0.22;
+  let text = note.text;
+  if (editingNote === note && Math.floor(performance.now() / 500) % 2 === 0) text += "|";
+  const lines = wrapText(text, w - marginX * 2);
+  lines.forEach((line, i) => ctx.fillText(line, x + marginX, y + marginY + i * 20));
+  ctx.restore();
+}
+
+function drawFridgeDrawer() {
+  const rect = drawerRect();
+  const img = fridgeImage(FRIDGE_DRAWER_FILENAME);
+  if (img.complete && img.naturalWidth !== 0) ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h);
+
+  fridgeNotes.forEach((note) => {
+    if (note.location === "drawer" && note !== heldNote) drawFridgeNote(note);
+  });
+}
+
+// Draw order (back to front): notes already stuck to the fridge, then the
+// magnets pinning them, then the drawer (it physically sits in front of/below
+// the fridge door), then whichever note is currently being dragged, on top of
+// everything.
+function drawFridgeScene() {
+  if (!fridgeMagnets || !fridgeNotes) return;
+
+  fridgeNotes.forEach((note) => {
+    if (note.location === "fridge" && note !== heldNote) drawFridgeNote(note);
+  });
+
+  fridgeMagnets.forEach((magnet) => {
+    safeDrawImage(fridgeImage(magnet.filename), magnet.coordinates_by_percentage, magnet.scale, magnet.id);
+  });
+
+  drawFridgeDrawer();
+
+  if (heldNote) drawFridgeNote(heldNote);
+}
+
 // -------------------- DRAW LOOP --------------------
 
 function draw() {
@@ -1450,6 +1762,7 @@ function draw() {
       if (node.id === "bank_home") safeTry("bank balance", () => drawBankBalance(node));
       if (node.id === "wizardgame") safeTry("wizard game", () => drawWizardGame(node));
       if (node.id === "journalpopup") safeTry("journal", () => drawJournal(node));
+      if (node.id === "fridgepopup") safeTry("fridge", drawFridgeScene);
 
       node.children.forEach((child) => {
         if (hidden.has(child.id) || !child.img) return;
@@ -1536,6 +1849,31 @@ canvas.addEventListener("mousemove", (e) => {
     return;
   }
 
+  if (openPath[openPath.length - 1].id === "fridgepopup") {
+    if (draggingDrawer) {
+      fridgeDrawerY = clampDrawerY(mouseY - drawerDragOffsetY);
+      canvas.style.cursor = "grabbing";
+      return;
+    }
+    if (heldMagnet) {
+      updateDraggedMagnet();
+      canvas.style.cursor = "grabbing";
+      return;
+    }
+    if (heldNote) {
+      canvas.style.cursor = "grabbing";
+      return;
+    }
+
+    const dRect = drawerRect();
+    const hovering =
+      mouseY >= dRect.y ||
+      fridgeMagnets.some((m) => hitTestMagnet(m, mouseX, mouseY)) ||
+      fridgeNotes.some((n) => n.location === "fridge" && hitTestFridgeNote(n, mouseX, mouseY));
+    canvas.style.cursor = hovering ? "grab" : "default";
+    return;
+  }
+
   const clickable = getClickableNodeAt(mouseX, mouseY);
   canvas.style.cursor = clickable ? "pointer" : "default";
 });
@@ -1554,6 +1892,11 @@ function copyClickCoordinates(x, y) {
 
 canvas.addEventListener("mousedown", () => {
   const topNode = openPath[openPath.length - 1];
+
+  // Any click at all closes out an in-progress note edit — if it's actually a
+  // (no-move) click back on that same note, finalizeNoteDrop below reopens it
+  // in the same frame, so continuing to type on it feels uninterrupted.
+  editingNote = null;
 
   // The compromised alert is a plain decoration (no children, so never
   // "clickable" via the generic popup tree) — clicking it just starts a
@@ -1599,6 +1942,30 @@ canvas.addEventListener("mousedown", () => {
       handleJournalClick();
       return;
     }
+  }
+
+  // Clicking inside the fridge scene checks its layers topmost-first: a note
+  // (in the drawer, or already stuck to the fridge) or the drawer itself if
+  // the click falls within the drawer's currently visible band — it spans
+  // the full canvas width regardless of the fridge door's own narrower
+  // bounds — then magnets, then notes on the fridge door. A miss on all of
+  // those falls through to the generic click-outside-closes-the-popup logic
+  // further down, the same as every other app.
+  if (topNode.id === "fridgepopup") {
+    const dRect = drawerRect();
+    if (mouseY >= dRect.y) {
+      const drawerNote = [...fridgeNotes].reverse().find((n) => n.location === "drawer" && hitTestFridgeNote(n, mouseX, mouseY));
+      if (drawerNote) { beginDragNote(drawerNote); return; }
+      draggingDrawer = true;
+      drawerDragOffsetY = mouseY - dRect.y;
+      return;
+    }
+
+    const magnet = [...fridgeMagnets].reverse().find((m) => hitTestMagnet(m, mouseX, mouseY));
+    if (magnet) { beginDragMagnet(magnet); return; }
+
+    const fridgeNote = [...fridgeNotes].reverse().find((n) => n.location === "fridge" && hitTestFridgeNote(n, mouseX, mouseY));
+    if (fridgeNote) { beginDragNote(fridgeNote); return; }
   }
 
   if (topNode.id === "coffeecounter") {
@@ -1660,6 +2027,10 @@ canvas.addEventListener("mousedown", () => {
     } else if (node.id === "journal") {
       resetJournal(); // start back on the most recent entry every time it's opened
       openPath.push(...node.children);
+    } else if (node.id === "notes") {
+      if (!fridgeMagnets) initFridgeMagnets(); // first open only — state persists after that
+      if (!fridgeNotes) initFridgeNotes();
+      openPath.push(...node.children);
     } else {
       openPath.push(...node.children);
     }
@@ -1688,6 +2059,30 @@ canvas.addEventListener("mousedown", () => {
 // released outside the canvas still stops instead of sticking to the cursor.
 window.addEventListener("mouseup", () => {
   draggingAlert = false;
+  draggingDrawer = false;
+  heldMagnet = null;
+  if (heldNote) {
+    finalizeNoteDrop();
+    heldNote = null;
+  }
+});
+
+// Typing on whichever fridge note is currently open for editing (see
+// finalizeNoteDrop/editingNote) — a plain keydown buffer, the same idea as
+// every other bit of text in this file (affirmations/journal/bank balance)
+// just draws to canvas rather than a real input, since there's no other
+// keyboard-driven mechanic in the file to conflict with it.
+window.addEventListener("keydown", (e) => {
+  if (!editingNote) return;
+
+  if (e.key === "Backspace") {
+    editingNote.text = editingNote.text.slice(0, -1);
+    e.preventDefault();
+  } else if (e.key === "Enter" || e.key === "Escape") {
+    editingNote = null;
+  } else if (e.key.length === 1 && editingNote.text.length < NOTE_MAX_CHARS) {
+    editingNote.text += e.key;
+  }
 });
 
 // Double-clicking sets the carried coffee mug down on the spot — only while
