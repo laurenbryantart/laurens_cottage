@@ -317,6 +317,31 @@ function loadImages(node, cache = {}) {
 
 loadImages(root);
 
+// -------------------- SOUND EFFECTS --------------------
+// One Audio per unique file, fetched once and replayed from the start each
+// time (rather than a fresh `new Audio()` per play) — these effects are
+// short and never intentionally overlap themselves, so resetting
+// currentTime is enough.
+
+const SOUND_FOLDER = "soundeffects/";
+const soundCache = {};
+function loadSound(filename) {
+  if (!soundCache[filename]) {
+    const audio = new Audio(`${SOUND_FOLDER}${filename}.mp3`);
+    audio.onerror = () => pushError(`Missing sound: ${SOUND_FOLDER}${filename}.mp3`);
+    soundCache[filename] = audio;
+  }
+  return soundCache[filename];
+}
+
+function playSound(filename) {
+  safeTry(`sound: ${filename}`, () => {
+    const audio = loadSound(filename);
+    audio.currentTime = 0;
+    audio.play().catch((err) => pushError(`Sound playback failed: ${filename} (${err.message})`));
+  });
+}
+
 // -------------------- COORDINATES --------------------
 // `coordinates_by_percentage` normally points at the CENTER of a node's image. The one
 // exception is [0, 0] — used by room_background to sit flush in the
@@ -660,11 +685,11 @@ function coffeeImage(filename) {
 // scale is 1 on all of these — each image file was shrunk to match its
 // on-counter display size exactly (see the note above `images`).
 let coffeeItems = [
-  { kind: "mug", mugType: "papercup", state: "empty", topping: null, coordinates_by_percentage: [38, 28], scale: 1 },
-  { kind: "mug", mugType: "greenmug", state: "empty", topping: null, coordinates_by_percentage: [28, 45], scale: 1 },
-  { kind: "mug", mugType: "redmug", state: "empty", topping: null, coordinates_by_percentage: [35, 65], scale: 1 },
-  { kind: "mug", mugType: "wavymug", state: "empty", topping: null, coordinates_by_percentage: [47, 70], scale: 1 },
-  { kind: "mug", mugType: "yellowmug", state: "empty", topping: null, coordinates_by_percentage: [40, 44], scale: 1 },
+  { kind: "mug", mugType: "papercup", state: "empty", topping: null, coordinates_by_percentage: [38, 28], scale: 1, pickedUp: false },
+  { kind: "mug", mugType: "greenmug", state: "empty", topping: null, coordinates_by_percentage: [28, 45], scale: 1, pickedUp: false },
+  { kind: "mug", mugType: "redmug", state: "empty", topping: null, coordinates_by_percentage: [35, 65], scale: 1, pickedUp: false },
+  { kind: "mug", mugType: "wavymug", state: "empty", topping: null, coordinates_by_percentage: [47, 70], scale: 1, pickedUp: false },
+  { kind: "mug", mugType: "yellowmug", state: "empty", topping: null, coordinates_by_percentage: [40, 44], scale: 1, pickedUp: false },
   { kind: "milk", coordinates_by_percentage: [77, 40], scale: 1 },
   { kind: "creamer", coordinates_by_percentage: [90, 63], scale: 1 },
   { kind: "whip", coordinates_by_percentage: [87, 40], scale: 1 },
@@ -859,6 +884,7 @@ function placeHeldItem(x, y) {
       machineState = "empty";
       heldItem = null;
       lastCoffeeMug = targetMug;
+      playSound("Pouring water");
     }
     return; // no valid mug: stays held, nothing more to do
   }
@@ -868,6 +894,7 @@ function placeHeldItem(x, y) {
     if (MILK_LIKE.includes(item.kind) && targetMug.state === "coffee") {
       targetMug.state = "coffee_milk";
       applied = true;
+      playSound("Pouring water");
     }
     if (TOPPING_LIKE.includes(item.kind) && targetMug.state !== "empty") {
       targetMug.topping = item.kind;
@@ -921,6 +948,13 @@ function handleCoffeeCounterClick(x, y) {
       // Picking up a mug that already has coffee in it counts as
       // "interacting with your coffee" too, not just pouring/topping it.
       if (item.kind === "mug" && item.state !== "empty") lastCoffeeMug = item;
+      // The clink only plays the first time each specific mug gets chosen —
+      // picking the same one up again later (to carry it, refill it, etc.)
+      // stays quiet.
+      if (item.kind === "mug" && !item.pickedUp) {
+        item.pickedUp = true;
+        playSound("Glasses clinking");
+      }
       return true;
     }
   }
@@ -1162,6 +1196,7 @@ function updateWizardGame(node) {
   const bottom = rect.y + rect.h;
   if (wizardPieces.some((piece) => piece.y + piece.h >= bottom)) {
     wizardScore = 0;
+    playSound("Negative guitar");
     wizardFreezeUntil = now + WIZARD_LOSS_FREEZE_MS;
     wizardLossFlashStart = now;
     wizardFreezeCursorPos = { x: mouseX, y: mouseY };
