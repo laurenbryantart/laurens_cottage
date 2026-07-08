@@ -1461,11 +1461,35 @@ const MAGNET_LETTER_FILENAMES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((l) =
 const MAGNET_DECORATIVE_FILENAMES = ["magnet_SF", "magnet_heart", "magnet_ladybug", "magnet_mermaid", "magnet_mosaic", "magnet_wizard"];
 const MAGNET_FILENAMES = [...MAGNET_LETTER_FILENAMES, ...MAGNET_DECORATIVE_FILENAMES];
 const FRIDGE_PAPER_FILENAMES = [1, 2, 3, 4, 5, 6].map((n) => `fridge_paper${n}`);
+// Each paper is a hand-drawn sheet — often slanted or torn, not a plain
+// rectangle — so a single percentage-based margin let text run past the
+// drawn edge on some of them. Each one gets its own writable rect instead,
+// hand-picked in that file's own native pixel space (same idea as
+// JOURNAL_PAGE_RECT), scaled by NOTE_SCALE like everything else about a note.
+const NOTE_TEXT_BOX = {
+  fridge_paper1: { x: 70, y: 60, w: 590, h: 600 },
+  fridge_paper2: { x: 40, y: 40, w: 366, h: 300 },
+  fridge_paper3: { x: 40, y: 50, w: 460, h: 340 },
+  fridge_paper4: { x: 55, y: 60, w: 470, h: 860 },
+  fridge_paper5: { x: 60, y: 100, w: 640, h: 340 },
+  fridge_paper6: { x: 40, y: 50, w: 420, h: 640 },
+};
 const FRIDGE_DRAWER_FILENAME = "fridge_paper drawer"; // filename really does have a space in it
 [...MAGNET_FILENAMES, ...FRIDGE_PAPER_FILENAMES, FRIDGE_DRAWER_FILENAME].forEach(fridgeImage);
 
-const MAGNET_SCALE = 0.4;
-const NOTE_SCALE = 0.28;
+// Letter magnets read as clutter at a uniform scale, so they're a size down
+// from the decorative ones; the mermaid/wizard art reads as a tiny blob next
+// to a letter at that same scale, so they get a size bump instead.
+const MAGNET_LETTER_SCALE = 0.24;
+const MAGNET_DECORATIVE_SCALE = 0.4;
+const MAGNET_BIG_SCALE = 0.58;
+function magnetScaleFor(filename) {
+  if (filename === "magnet_mermaid" || filename === "magnet_wizard") return MAGNET_BIG_SCALE;
+  if (MAGNET_LETTER_FILENAMES.includes(filename)) return MAGNET_LETTER_SCALE;
+  return MAGNET_DECORATIVE_SCALE;
+}
+
+const NOTE_SCALE = 0.36;
 const NOTE_MAX_CHARS = 80;
 // A pickup that never moves more than this many pixels before mouseup counts
 // as a click (open the note for typing) rather than a drag (re-place it).
@@ -1473,14 +1497,14 @@ const NOTE_CLICK_MOVE_THRESHOLD = 6;
 
 // fridge_paper drawer.png is a top-down look INTO an open drawer (the tan
 // band across its own top edge is the drawer's front lip, with the knob
-// poking up above that) — natively 1891x1381. Scaled to exactly fill the
-// canvas's width, so only its vertical position (fridgeDrawerY) needs to be
-// dragged; peeking at 130px when closed shows just that lip + knob, per the
-// "knob and first lip visible" ask.
+// poking up above that) — natively 1891x1381. Scaled down to less than half
+// the canvas's width (rather than filling it) and centered, so only its
+// vertical position (fridgeDrawerY) needs to be dragged; peeking at 55px when
+// closed shows just that lip + knob, per the "knob and first lip visible" ask.
 const FRIDGE_DRAWER_NATIVE_W = 1891;
 const FRIDGE_DRAWER_NATIVE_H = 1381;
-const FRIDGE_DRAWER_SCALE = canvas.width / FRIDGE_DRAWER_NATIVE_W;
-const FRIDGE_DRAWER_PEEK_PX = 130;
+const FRIDGE_DRAWER_SCALE = (canvas.width * 0.42) / FRIDGE_DRAWER_NATIVE_W;
+const FRIDGE_DRAWER_PEEK_PX = 55;
 
 let fridgeMagnets = null; // populated on first open by initFridgeMagnets — persists after that, like coffeeItems
 let fridgeNotes = null; // populated on first open by initFridgeNotes — persists after that
@@ -1508,9 +1532,18 @@ function fridgeRect() {
 }
 
 function drawerRect() {
+  const w = FRIDGE_DRAWER_NATIVE_W * FRIDGE_DRAWER_SCALE;
   const h = FRIDGE_DRAWER_NATIVE_H * FRIDGE_DRAWER_SCALE;
   const y = fridgeDrawerY === null ? canvas.height - FRIDGE_DRAWER_PEEK_PX : fridgeDrawerY;
-  return { x: 0, y, w: canvas.width, h };
+  return { x: (canvas.width - w) / 2, y, w, h };
+}
+
+// Whether (x, y) falls within the drawer's own currently-visible rect —
+// unlike the fridge door, the drawer no longer spans the full canvas width,
+// so both axes need checking now that it's smaller and centered.
+function inDrawerBand(x, y) {
+  const r = drawerRect();
+  return y >= r.y && x >= r.x && x <= r.x + r.w;
 }
 
 function clampDrawerY(y) {
@@ -1520,45 +1553,80 @@ function clampDrawerY(y) {
   return Math.min(Math.max(y, minY), maxY);
 }
 
+function rectsOverlap(a, b, gap = 0) {
+  return !(
+    a.x + a.w + gap <= b.x ||
+    b.x + b.w + gap <= a.x ||
+    a.y + a.h + gap <= b.y ||
+    b.y + b.h + gap <= a.y
+  );
+}
+
 // Scatters every magnet at a random spot inside the fridge door, once. Called
 // the first time notes is clicked, same "populate on first open, keep state
-// after that" rule coffeeItems follows.
+// after that" rule coffeeItems follows. Each spot is retried a handful of
+// times against whatever's already been placed so magnets start out not
+// touching (dragging them into each other afterward is fine) — and the whole
+// scatter is kept clear of the fridge's own left edge, which is a decorative
+// sliver of the door's side, not part of the front face.
+const FRIDGE_LEFT_DECORATIVE_FRACTION = 0.12;
 function initFridgeMagnets() {
   const rect = fridgeRect();
-  const margin = 24;
+  const margin = 20;
+  const leftInset = rect.w * FRIDGE_LEFT_DECORATIVE_FRACTION;
+  const placedRects = [];
+
   fridgeMagnets = MAGNET_FILENAMES.map((filename) => {
     const img = fridgeImage(filename);
-    const w = img.width * MAGNET_SCALE;
-    const h = img.height * MAGNET_SCALE;
-    const minX = rect.x + margin + w / 2;
+    const scale = magnetScaleFor(filename);
+    const w = img.width * scale;
+    const h = img.height * scale;
+    const minX = rect.x + leftInset + w / 2;
     const maxX = rect.x + rect.w - margin - w / 2;
     const minY = rect.y + margin + h / 2;
     const maxY = rect.y + rect.h - margin - h / 2;
-    const x = minX + Math.random() * Math.max(0, maxX - minX);
-    const y = minY + Math.random() * Math.max(0, maxY - minY);
-    return { id: filename, filename, scale: MAGNET_SCALE, coordinates_by_percentage: pixelsToPercentage(x, y) };
+
+    let x, y, box;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      x = minX + Math.random() * Math.max(0, maxX - minX);
+      y = minY + Math.random() * Math.max(0, maxY - minY);
+      box = { x: x - w / 2, y: y - h / 2, w, h };
+      if (!placedRects.some((p) => rectsOverlap(box, p, 10))) break;
+    }
+    placedRects.push(box);
+
+    return { id: filename, filename, scale, coordinates_by_percentage: pixelsToPercentage(x, y) };
   });
 }
 
 // Scatters every note somewhere inside the drawer's own native image space
 // (not just whatever sliver is currently visible — the user will drag the
-// drawer open to see the rest), clear of the lip/knob band across its top.
+// drawer open to see the rest). marginTop is computed per note (rather than
+// one shared constant) from that note's own rendered height, so that however
+// tall a given paper's art is, its top edge still lands clear of the drawer's
+// closed peek band — otherwise, with notes now sized independently of the
+// (much smaller) drawer, a big note could poke up into the knob/lip sliver
+// and block clicking it to open the drawer at all.
 function initFridgeNotes() {
-  const marginX = FRIDGE_DRAWER_NATIVE_W * 0.08;
-  const marginTop = FRIDGE_DRAWER_NATIVE_H * 0.18;
+  const marginX = FRIDGE_DRAWER_NATIVE_W * 0.06;
   const marginBottom = FRIDGE_DRAWER_NATIVE_H * 0.04;
-  fridgeNotes = FRIDGE_PAPER_FILENAMES.map((filename, i) => ({
-    id: `note${i}`,
-    filename,
-    location: "drawer", // "drawer" | "fridge"
-    text: "",
-    coordinates_by_percentage: null, // used when location === "fridge"
-    drawerOffset: {
-      // pixels in the drawer image's own native (unscaled) space
-      x: marginX + Math.random() * (FRIDGE_DRAWER_NATIVE_W - marginX * 2),
-      y: marginTop + Math.random() * (FRIDGE_DRAWER_NATIVE_H - marginTop - marginBottom),
-    },
-  }));
+  fridgeNotes = FRIDGE_PAPER_FILENAMES.map((filename, i) => {
+    const img = fridgeImage(filename);
+    const halfHeightScreen = (img.height * NOTE_SCALE) / 2;
+    const marginTop = (FRIDGE_DRAWER_PEEK_PX + halfHeightScreen) / FRIDGE_DRAWER_SCALE + 20;
+    return {
+      id: `note${i}`,
+      filename,
+      location: "drawer", // "drawer" | "fridge"
+      text: "",
+      coordinates_by_percentage: null, // used when location === "fridge"
+      drawerOffset: {
+        // pixels in the drawer image's own native (unscaled) space
+        x: marginX + Math.random() * (FRIDGE_DRAWER_NATIVE_W - marginX * 2),
+        y: marginTop + Math.random() * Math.max(0, FRIDGE_DRAWER_NATIVE_H - marginTop - marginBottom),
+      },
+    };
+  });
 }
 
 function magnetRect(magnet) {
@@ -1650,7 +1718,7 @@ function finalizeNoteDrop() {
   }
 
   const dRect = drawerRect();
-  if (mouseY >= dRect.y) {
+  if (inDrawerBand(mouseX, mouseY)) {
     note.location = "drawer";
     note.drawerOffset = {
       x: (mouseX - dRect.x) / FRIDGE_DRAWER_SCALE,
@@ -1673,7 +1741,7 @@ function finalizeNoteDrop() {
 
 // Draws a note at its current screen rect, plus whatever's been typed on it
 // (and a blinking cursor while it's the one being edited) — same handwriting
-// font the journal/affirmations use, sized down to fit the note.
+// font the journal/affirmations use, wrapped to that paper's own text box.
 function drawFridgeNote(note) {
   const img = fridgeImage(note.filename);
   if (!img.complete || img.naturalWidth === 0) return;
@@ -1683,17 +1751,22 @@ function drawFridgeNote(note) {
 
   if (!note.text && editingNote !== note) return;
 
+  const box = NOTE_TEXT_BOX[note.filename];
+  const boxX = x + box.x * NOTE_SCALE;
+  const boxY = y + box.y * NOTE_SCALE;
+  const boxW = box.w * NOTE_SCALE;
+
   ctx.save();
   ctx.fillStyle = "black";
-  ctx.font = "16px Handwriting, cursive";
+  ctx.font = "18px Handwriting, cursive";
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  const marginX = w * 0.18;
-  const marginY = h * 0.22;
   let text = note.text;
   if (editingNote === note && Math.floor(performance.now() / 500) % 2 === 0) text += "|";
-  const lines = wrapText(text, w - marginX * 2);
-  lines.forEach((line, i) => ctx.fillText(line, x + marginX, y + marginY + i * 20));
+  // wrapText measures with ctx.font, so it must be set (above) before this call.
+  const lines = wrapText(text, boxW);
+  const lineHeight = 22;
+  lines.forEach((line, i) => ctx.fillText(line, boxX, boxY + i * lineHeight));
   ctx.restore();
 }
 
@@ -1865,9 +1938,8 @@ canvas.addEventListener("mousemove", (e) => {
       return;
     }
 
-    const dRect = drawerRect();
     const hovering =
-      mouseY >= dRect.y ||
+      inDrawerBand(mouseX, mouseY) ||
       fridgeMagnets.some((m) => hitTestMagnet(m, mouseX, mouseY)) ||
       fridgeNotes.some((n) => n.location === "fridge" && hitTestFridgeNote(n, mouseX, mouseY));
     canvas.style.cursor = hovering ? "grab" : "default";
@@ -1946,14 +2018,13 @@ canvas.addEventListener("mousedown", () => {
 
   // Clicking inside the fridge scene checks its layers topmost-first: a note
   // (in the drawer, or already stuck to the fridge) or the drawer itself if
-  // the click falls within the drawer's currently visible band — it spans
-  // the full canvas width regardless of the fridge door's own narrower
-  // bounds — then magnets, then notes on the fridge door. A miss on all of
-  // those falls through to the generic click-outside-closes-the-popup logic
-  // further down, the same as every other app.
+  // the click falls within the drawer's own currently visible rect, then
+  // magnets, then notes on the fridge door. A miss on all of those falls
+  // through to the generic click-outside-closes-the-popup logic further
+  // down, the same as every other app.
   if (topNode.id === "fridgepopup") {
-    const dRect = drawerRect();
-    if (mouseY >= dRect.y) {
+    if (inDrawerBand(mouseX, mouseY)) {
+      const dRect = drawerRect();
       const drawerNote = [...fridgeNotes].reverse().find((n) => n.location === "drawer" && hitTestFridgeNote(n, mouseX, mouseY));
       if (drawerNote) { beginDragNote(drawerNote); return; }
       draggingDrawer = true;
