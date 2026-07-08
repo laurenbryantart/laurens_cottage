@@ -91,7 +91,24 @@ let images = {
                 ],
               },
               { path: "computer/app_borders.png", coordinates_by_percentage: [65.7, 55.7], scale: APP_SIZE },
-              { path: "computer/app_camera.png", coordinates_by_percentage: [66.8, 29.7], scale: APP_SIZE },
+              {
+                path: "computer/app_camera.png", coordinates_by_percentage: [66.8, 29.7], scale: APP_SIZE, shake: true,
+                children: [
+                  {
+                    // "camera app background.png" was cropped/shrunk to match its
+                    // full-size on-canvas display (1230x877, native was
+                    // 1674x1194) — scale 0.76 is a deliberate 24% size-down from
+                    // that on top (20% then another 5%), not a typo/stand-in for
+                    // 1. See the "CAMERA APP" section further down for the photo
+                    // carousel drawn on top of it (its layout rects are
+                    // fractions of this node's own w/h, so they scale down with
+                    // it automatically).
+                    id: "cameraapp", path: "computer/camera app/camera app background.png",
+                    coordinates_by_percentage: [50, 50], scale: 0.76,
+                    do_dark_background: true,
+                  },
+                ],
+              },
               {
                 path: "computer/app_wizard.png", coordinates_by_percentage: [53.2, 48.5], scale: APP_SIZE, shake: true,
                 children: [
@@ -1499,7 +1516,8 @@ const NOTE_TEXT_BOX = {
   fridge_paper6: { left: 98, top: 150, width: 355, fontSize: 20, lineHeight: 22, maxChars: 190 },
 };
 const FRIDGE_DRAWER_FILENAME = "fridge_paper drawer"; // filename really does have a space in it
-[...MAGNET_FILENAMES, ...FRIDGE_PAPER_FILENAMES, FRIDGE_DRAWER_FILENAME].forEach(fridgeImage);
+const FRIDGE_PEN_FILENAME = "fridge_pen";
+[...MAGNET_FILENAMES, ...FRIDGE_PAPER_FILENAMES, FRIDGE_DRAWER_FILENAME, FRIDGE_PEN_FILENAME].forEach(fridgeImage);
 
 // Letter magnets read as clutter at a uniform scale, so they're a size down
 // from the decorative ones; the mermaid/wizard art reads as a tiny blob next
@@ -1847,6 +1865,207 @@ function drawFridgeScene() {
   if (heldNote) drawFridgeNote(heldNote);
 }
 
+// fridge_pen.png has already been cropped tight to the pen art and shrunk to
+// a base display size (native 19x170) — see the "FRIDGE MECHANIC" intro
+// comment's sibling note above about pre-shrunk files. PEN_SCALE is a
+// deliberate multiplier on top of that (not a typo/stand-in for 1) since the
+// cursor reads as too small at native size. PEN_TIP_OFFSET is the nib's tip
+// in that same native pixel space, measured off the cropped file directly —
+// it's the pen's hotspot (scaled by PEN_SCALE same as the image itself), the
+// same idea as WIZARD_STAR_OFFSET is for the wizard cursor.
+const PEN_SCALE = 1.6;
+const PEN_TIP_OFFSET = { x: 8, y: 169 };
+// Leans the pen's top-left, like a left-handed writing grip (mirror the sign
+// for a right-handed lean instead).
+const PEN_TILT_DEGREES = 35;
+
+// Replaces the mouse cursor with the pen (nib at the real cursor position,
+// tilted) whenever a fridge note is open for typing — same trick
+// drawWizardCursor uses, just gated on editingNote instead of which popup is
+// open.
+function drawFridgePenCursor() {
+  if (!editingNote) return;
+  if (openPath[openPath.length - 1].id !== "fridgepopup") return;
+
+  const img = fridgeImage(FRIDGE_PEN_FILENAME);
+  if (!img.complete || img.naturalWidth === 0) return;
+
+  ctx.save();
+  ctx.translate(mouseX, mouseY);
+  ctx.rotate((-PEN_TILT_DEGREES * Math.PI) / 180);
+  ctx.drawImage(img, -PEN_TIP_OFFSET.x * PEN_SCALE, -PEN_TIP_OFFSET.y * PEN_SCALE, img.width * PEN_SCALE, img.height * PEN_SCALE);
+  ctx.restore();
+}
+
+// -------------------- CAMERA APP --------------------
+// Clicking app_camera opens cameraapp (a single do_dark_background layer, the
+// same trick bank_home/coffeecounter/wizardgame/journalpopup use). The photo
+// filmstrip lives outside the generic popup tree (like the coffee items and
+// fridge notes do): five photos sit in the little boxes along the bottom, the
+// current one drawn slightly bigger than the rest, and whichever one is
+// current is also shown large in the main viewing area above the filmstrip
+// (below the "CAMERA" title bar). Click a thumbnail to jump straight to it,
+// or scroll (trackpad or wheel) while the app is open to step forward/back.
+
+const CAMERA_FOLDER = IMAGES_FOLDER + "computer/camera app/";
+const cameraImageCache = {};
+function cameraImage(filename) {
+  if (!cameraImageCache[filename]) {
+    const img = new Image();
+    img.onerror = () => pushError(`Missing image: ${CAMERA_FOLDER}${filename}.png`);
+    img.src = `${CAMERA_FOLDER}${filename}.png`;
+    cameraImageCache[filename] = img;
+  }
+  return cameraImageCache[filename];
+}
+const CAMERA_PHOTO_FILENAMES = [1, 2, 3, 4, 5].map((n) => `cameraphoto${n}`);
+CAMERA_PHOTO_FILENAMES.forEach(cameraImage);
+
+let cameraPhotoIndex = 0;
+// Each drawn thumbnail's actual on-screen rect (index-matched to
+// CAMERA_PHOTO_FILENAMES), refreshed every frame by drawCameraApp — kept
+// separate from the boxes' own fixed layout so a click can hit-test the
+// boosted size of whichever thumbnail is currently selected, not just its box.
+let cameraThumbRects = [];
+
+// Called when app_camera is opened, so it always starts on the first photo.
+function resetCameraApp() {
+  cameraPhotoIndex = 0;
+}
+
+// Both rects below are fractions (0-1) of cameraapp's own width/height — (0,
+// 0) is the popup's own top-left corner and (1, 1) its bottom-right, NOT the
+// canvas — hand-picked off the background art the same way
+// BANK_BALANCE_RECT/BANK_PRESS_RECT are, so they still line up correctly if
+// cameraapp's position/scale ever changes. To nudge one: raise a xMin/yMin to
+// move that edge right/down, raise a xMax/yMax to move that edge further
+// right/down too (so raise both of a pair to shift the whole box without
+// resizing it, or move just one edge to resize it).
+//
+// CAMERA_MAIN_RECT: the empty area below the title bar and above the
+// filmstrip, where the current photo displays large.
+//
+// CAMERA_THUMB_ROW_RECT: just the vertical (yMin/yMax) span of the filmstrip
+// row along the bottom — shared by all 5 boxes.
+//
+// CAMERA_THUMB_COLUMNS: the 5 boxes' individual horizontal (xMin/xMax) spans,
+// left to right. They're not perfectly even widths in the hand-drawn art, so
+// each box gets its own measured span rather than dividing the row evenly —
+// keep that in mind if nudging one, the others don't auto-adjust to fill the gap.
+// yOffset is a per-box vertical nudge (fraction of cameraapp's own height,
+// same units as everything else here) on top of CAMERA_THUMB_ROW_RECT's
+// shared band — positive moves that one box down, negative moves it up.
+// Defaults to 0 (sits exactly in the shared band); only set on the boxes that
+// actually need to sit higher/lower than the rest.
+const CAMERA_MAIN_RECT = { xMin: 0.0657, xMax: 0.9504, yMin: 0.0804, yMax: 0.746 };
+const CAMERA_THUMB_ROW_RECT = { yMin: 0.748, yMax: 0.896 };
+const CAMERA_THUMB_COLUMNS = [
+  { xMin: 0.0412, xMax: 0.2193, yOffset: 0 }, // box 1 (leftmost)
+  { xMin: 0.2193, xMax: 0.4068, yOffset: 0.01 }, // box 2
+  { xMin: 0.4068, xMax: 0.5771, yOffset: 0.02 }, // box 3
+  { xMin: 0.5771, xMax: 0.7563, yOffset: 0.04 }, // box 4
+  { xMin: 0.7563, xMax: 0.919, yOffset: 0.055 }, // box 5 (rightmost)
+];
+
+function cameraAppRect(node) {
+  const w = node.img.width * node.scale;
+  const h = node.img.height * node.scale;
+  const { x, y } = topLeftFor(node.coordinates_by_percentage, w, h);
+  return { x, y, w, h };
+}
+
+function cameraMainRect(node) {
+  const { x, y, w, h } = cameraAppRect(node);
+  return {
+    x: x + CAMERA_MAIN_RECT.xMin * w,
+    y: y + CAMERA_MAIN_RECT.yMin * h,
+    w: (CAMERA_MAIN_RECT.xMax - CAMERA_MAIN_RECT.xMin) * w,
+    h: (CAMERA_MAIN_RECT.yMax - CAMERA_MAIN_RECT.yMin) * h,
+  };
+}
+
+function cameraThumbRect(node, i) {
+  const { x, y, w, h } = cameraAppRect(node);
+  const col = CAMERA_THUMB_COLUMNS[i];
+  return {
+    x: x + col.xMin * w,
+    y: y + (CAMERA_THUMB_ROW_RECT.yMin + (col.yOffset || 0)) * h,
+    w: (col.xMax - col.xMin) * w,
+    h: (CAMERA_THUMB_ROW_RECT.yMax - CAMERA_THUMB_ROW_RECT.yMin) * h,
+  };
+}
+
+// The current photo's thumbnail is drawn at CAMERA_SELECTED_THUMB_BOOST times
+// the size of the others (allowed to bulge slightly outside its box, like it's
+// been pulled forward in the filmstrip) rather than being clipped to it.
+// Lower CAMERA_THUMB_PADDING/CAMERA_MAIN_PADDING to shrink the photos within
+// their boxes (more margin around them); raise toward 1 to fill the box more
+// fully. Raise/lower CAMERA_SELECTED_THUMB_BOOST to make the selected
+// thumbnail more/less bigger than the rest (1 = same size as the others).
+const CAMERA_THUMB_PADDING = 0.75; // fraction of a thumbnail box used at rest
+const CAMERA_SELECTED_THUMB_BOOST = 1.2;
+const CAMERA_MAIN_PADDING = 0.94; // fraction of CAMERA_MAIN_RECT used by the big photo
+
+// "Contain"-fits img into rect (scaled by paddingFraction), centered — same
+// idea as drawJournal's paper-fitting. Returns the on-screen rect actually
+// drawn into, so callers can hit-test against exactly what's visible
+// (including a boosted thumbnail's bulge past its box).
+function drawContainImage(img, rect, paddingFraction = 1) {
+  if (!img.complete || img.naturalWidth === 0) return null;
+  const availW = rect.w * paddingFraction;
+  const availH = rect.h * paddingFraction;
+  const fitScale = Math.min(availW / img.width, availH / img.height);
+  const w = img.width * fitScale;
+  const h = img.height * fitScale;
+  const x = rect.x + (rect.w - w) / 2;
+  const y = rect.y + (rect.h - h) / 2;
+  ctx.drawImage(img, x, y, w, h);
+  return { x, y, w, h };
+}
+
+// Draws the current photo large in the main viewing area, then the filmstrip
+// of all 5 thumbnails along the bottom — returns each thumbnail's actual drawn
+// rect (keyed by index) so click handling can hit-test the boosted size of
+// whichever one is currently selected, not just its box.
+function drawCameraApp(node) {
+  drawContainImage(cameraImage(CAMERA_PHOTO_FILENAMES[cameraPhotoIndex]), cameraMainRect(node), CAMERA_MAIN_PADDING);
+
+  CAMERA_PHOTO_FILENAMES.forEach((filename, i) => {
+    const selected = i === cameraPhotoIndex;
+    const padding = selected ? CAMERA_THUMB_PADDING * CAMERA_SELECTED_THUMB_BOOST : CAMERA_THUMB_PADDING;
+    cameraThumbRects[i] = drawContainImage(cameraImage(filename), cameraThumbRect(node, i), padding);
+  });
+}
+
+// Returns true once it's handled the click (so the generic click logic
+// further down knows to do nothing else) — a miss just falls through to that
+// generic logic, same as the wizard game/journal do.
+function handleCameraAppClick(x, y) {
+  for (let i = 0; i < cameraThumbRects.length; i++) {
+    const r = cameraThumbRects[i];
+    if (r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+      cameraPhotoIndex = i;
+      return true;
+    }
+  }
+  return false;
+}
+
+// Scrolling (trackpad left/right, or a plain mouse wheel) while the app is
+// open steps to the next/previous photo, looping around at either end.
+canvas.addEventListener(
+  "wheel",
+  (e) => {
+    if (openPath[openPath.length - 1].id !== "cameraapp") return;
+    e.preventDefault();
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (!delta) return;
+    const step = delta > 0 ? 1 : -1;
+    cameraPhotoIndex = (cameraPhotoIndex + step + CAMERA_PHOTO_FILENAMES.length) % CAMERA_PHOTO_FILENAMES.length;
+  },
+  { passive: false }
+);
+
 // -------------------- DRAW LOOP --------------------
 
 function draw() {
@@ -1883,6 +2102,7 @@ function draw() {
       if (node.id === "wizardgame") safeTry("wizard game", () => drawWizardGame(node));
       if (node.id === "journalpopup") safeTry("journal", () => drawJournal(node));
       if (node.id === "fridgepopup") safeTry("fridge", drawFridgeScene);
+      if (node.id === "cameraapp") safeTry("camera app", () => drawCameraApp(node));
 
       node.children.forEach((child) => {
         if (hidden.has(child.id) || !child.img) return;
@@ -1897,6 +2117,7 @@ function draw() {
 
     safeTry("carried mug", drawCarriedMug);
     safeTry("wizard cursor", drawWizardCursor);
+    safeTry("fridge pen cursor", drawFridgePenCursor);
     drawErrors();
   } catch (err) {
     pushError(`FATAL DRAW LOOP: ${err.message}`);
@@ -1970,6 +2191,10 @@ canvas.addEventListener("mousemove", (e) => {
   }
 
   if (openPath[openPath.length - 1].id === "fridgepopup") {
+    if (editingNote) {
+      canvas.style.cursor = "none"; // replaced by the drawn pen cursor (drawFridgePenCursor)
+      return;
+    }
     if (draggingDrawer) {
       fridgeDrawerY = clampDrawerY(mouseY - drawerDragOffsetY);
       canvas.style.cursor = "grabbing";
@@ -1990,6 +2215,14 @@ canvas.addEventListener("mousemove", (e) => {
       fridgeMagnets.some((m) => hitTestMagnet(m, mouseX, mouseY)) ||
       fridgeNotes.some((n) => n.location === "fridge" && hitTestFridgeNote(n, mouseX, mouseY));
     canvas.style.cursor = hovering ? "grab" : "default";
+    return;
+  }
+
+  if (openPath[openPath.length - 1].id === "cameraapp") {
+    const hovering = cameraThumbRects.some(
+      (r) => r && mouseX >= r.x && mouseX <= r.x + r.w && mouseY >= r.y && mouseY <= r.y + r.h
+    );
+    canvas.style.cursor = hovering ? "pointer" : "default";
     return;
   }
 
@@ -2086,6 +2319,10 @@ canvas.addEventListener("mousedown", () => {
     if (fridgeNote) { beginDragNote(fridgeNote); return; }
   }
 
+  if (topNode.id === "cameraapp") {
+    if (handleCameraAppClick(mouseX, mouseY)) return;
+  }
+
   if (topNode.id === "coffeecounter") {
     const w = topNode.img.width * topNode.scale;
     const h = topNode.img.height * topNode.scale;
@@ -2144,6 +2381,9 @@ canvas.addEventListener("mousedown", () => {
       openPath.push(...node.children);
     } else if (node.id === "journal") {
       resetJournal(); // start back on the most recent entry every time it's opened
+      openPath.push(...node.children);
+    } else if (node.id === "app_camera") {
+      resetCameraApp(); // start back on the first photo every time it's opened
       openPath.push(...node.children);
     } else if (node.id === "notes") {
       if (!fridgeMagnets) initFridgeMagnets(); // first open only — state persists after that
