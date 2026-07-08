@@ -1504,7 +1504,7 @@ const NOTE_CLICK_MOVE_THRESHOLD = 6;
 const FRIDGE_DRAWER_NATIVE_W = 1891;
 const FRIDGE_DRAWER_NATIVE_H = 1381;
 const FRIDGE_DRAWER_SCALE = (canvas.width * 0.42) / FRIDGE_DRAWER_NATIVE_W;
-const FRIDGE_DRAWER_PEEK_PX = 55;
+const FRIDGE_DRAWER_PEEK_PX = 120;
 
 let fridgeMagnets = null; // populated on first open by initFridgeMagnets — persists after that, like coffeeItems
 let fridgeNotes = null; // populated on first open by initFridgeNotes — persists after that
@@ -1729,8 +1729,15 @@ function finalizeNoteDrop() {
 
   const magnet = fridgeMagnets.find((m) => hitTestMagnet(m, mouseX, mouseY));
   if (magnet) {
+    // Snaps to the magnet's own position rather than the exact drop point,
+    // centered under it with the magnet sitting right at the note's top edge
+    // (half on, half off) — like the magnet is pinching the paper up there —
+    // regardless of where exactly on the magnet the note was dropped.
+    const mRect = magnetRect(magnet);
+    const noteImg = fridgeImage(note.filename);
+    const noteH = noteImg.height * NOTE_SCALE;
     note.location = "fridge";
-    note.coordinates_by_percentage = pixelsToPercentage(mouseX, mouseY);
+    note.coordinates_by_percentage = pixelsToPercentage(mRect.x + mRect.w / 2, mRect.y + mRect.h / 2 + noteH / 2);
     return;
   }
 
