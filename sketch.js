@@ -1465,14 +1465,19 @@ const FRIDGE_PAPER_FILENAMES = [1, 2, 3, 4, 5, 6].map((n) => `fridge_paper${n}`)
 // rectangle — so a single percentage-based margin let text run past the
 // drawn edge on some of them. Each one gets its own writable rect instead,
 // hand-picked in that file's own native pixel space (same idea as
-// JOURNAL_PAGE_RECT), scaled by NOTE_SCALE like everything else about a note.
+// JOURNAL_PAGE_RECT: x/y is the box's top-left, scaled by NOTE_SCALE like
+// everything else about a note — NOT canvas pixels, so these numbers don't
+// need to change if NOTE_SCALE ever does). fontSize is real on-canvas
+// pixels (not scaled), and lineHeight defaults to fontSize + 4 if omitted.
+// To tune one: open the note in-game (drag it onto a magnet, click it, type
+// some filler text) and nudge these until it sits the way you want.
 const NOTE_TEXT_BOX = {
-  fridge_paper1: { x: 70, y: 60, w: 590, h: 600 },
-  fridge_paper2: { x: 40, y: 40, w: 366, h: 300 },
-  fridge_paper3: { x: 40, y: 50, w: 460, h: 340 },
-  fridge_paper4: { x: 55, y: 60, w: 470, h: 860 },
-  fridge_paper5: { x: 60, y: 100, w: 640, h: 340 },
-  fridge_paper6: { x: 40, y: 50, w: 420, h: 640 },
+  fridge_paper1: { x: 20, y: 20, w: 20, h: 20, fontSize: 20 },
+  fridge_paper2: { x: 40, y: 40, w: 366, h: 300, fontSize: 18 },
+  fridge_paper3: { x: 40, y: 50, w: 460, h: 340, fontSize: 18 },
+  fridge_paper4: { x: 55, y: 60, w: 470, h: 860, fontSize: 18 },
+  fridge_paper5: { x: 60, y: 100, w: 640, h: 340, fontSize: 18 },
+  fridge_paper6: { x: 40, y: 50, w: 420, h: 640, fontSize: 18 },
 };
 const FRIDGE_DRAWER_FILENAME = "fridge_paper drawer"; // filename really does have a space in it
 [...MAGNET_FILENAMES, ...FRIDGE_PAPER_FILENAMES, FRIDGE_DRAWER_FILENAME].forEach(fridgeImage);
@@ -1765,14 +1770,14 @@ function drawFridgeNote(note) {
 
   ctx.save();
   ctx.fillStyle = "black";
-  ctx.font = "18px Handwriting, cursive";
+  ctx.font = `${box.fontSize}px Handwriting, cursive`;
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
   let text = note.text;
   if (editingNote === note && Math.floor(performance.now() / 500) % 2 === 0) text += "|";
   // wrapText measures with ctx.font, so it must be set (above) before this call.
   const lines = wrapText(text, boxW);
-  const lineHeight = 22;
+  const lineHeight = box.lineHeight || box.fontSize + 4;
   lines.forEach((line, i) => ctx.fillText(line, boxX, boxY + i * lineHeight));
   ctx.restore();
 }
