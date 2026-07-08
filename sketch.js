@@ -1666,6 +1666,22 @@ function hitTestMagnet(magnet, x, y) {
   return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
 }
 
+// Catching a note on a magnet (see finalizeNoteDrop) is deliberately more
+// forgiving than clicking a magnet to drag it — letter magnets in particular
+// are small, and requiring a pixel-precise drop onto one made it hard to
+// tell the mechanic even existed on a first try. This pads the magnet's own
+// rect out in every direction just for that catch check.
+const MAGNET_CATCH_PADDING = 34;
+function hitTestMagnetCatch(magnet, x, y) {
+  const r = magnetRect(magnet);
+  return (
+    x >= r.x - MAGNET_CATCH_PADDING &&
+    x <= r.x + r.w + MAGNET_CATCH_PADDING &&
+    y >= r.y - MAGNET_CATCH_PADDING &&
+    y <= r.y + r.h + MAGNET_CATCH_PADDING
+  );
+}
+
 // Held notes are drawn glued to the mouse (see drawFridgeNote), regardless of
 // their own location/drawerOffset/coordinates_by_percentage.
 function fridgeNoteScreenRect(note) {
@@ -1751,7 +1767,7 @@ function finalizeNoteDrop() {
     return;
   }
 
-  const magnet = fridgeMagnets.find((m) => hitTestMagnet(m, mouseX, mouseY));
+  const magnet = fridgeMagnets.find((m) => hitTestMagnetCatch(m, mouseX, mouseY));
   if (magnet) {
     // Snaps to the magnet's own position rather than the exact drop point,
     // centered under it with the magnet sitting right at the note's top edge
