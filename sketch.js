@@ -1465,25 +1465,38 @@ const FRIDGE_PAPER_FILENAMES = [1, 2, 3, 4, 5, 6].map((n) => `fridge_paper${n}`)
 // rectangle — so a single percentage-based margin let text run past the
 // drawn edge on some of them. Each one gets its own writable rect instead,
 // hand-picked in that file's own native pixel space (same idea as
-// JOURNAL_PAGE_RECT): left/top is the box's top-left corner, width/height is
-// its SIZE (how much room text has before it wraps or runs off the bottom —
-// NOT the font size, and unrelated to it). All four are scaled by NOTE_SCALE
-// like everything else about a note, so they don't need to change if
-// NOTE_SCALE ever does. fontSize is separate — real on-canvas pixels, not
-// scaled — and lineHeight defaults to fontSize + 4 if you don't set it.
-// If width/height end up too small for the font size, text will overflow the
-// box sideways instead of wrapping (there's nothing stopping a single word
-// wider than `width` from overrunning it) — so when bumping fontSize up,
-// check whether width/height still have enough room for it.
+// JOURNAL_PAGE_RECT).
+//
+// This is NOT an InDesign-style text box — there is no bottom edge or box
+// height to set, and nothing clips. Text just starts at (left, top) and
+// flows straight down, one line per `lineHeight` pixels, for as many lines
+// as the content needs:
+//   - left/top: where the first line starts. Native pixel space of that
+//     file (scaled by NOTE_SCALE, so these don't need to change if
+//     NOTE_SCALE ever does) — e.g. open the PNG in Preview and read
+//     coordinates off it directly.
+//   - width: wrap width, same native-pixel space. Smaller width = wraps
+//     sooner = MORE lines = text reaches further down the page (for the
+//     same amount of typed text). This is the knob for "make it go down
+//     further," not a height field.
+//   - fontSize: real on-canvas pixels, not scaled.
+//   - lineHeight: real on-canvas pixels, the plain distance from one line's
+//     baseline to the next. Defaults to fontSize + 4 if omitted — set it
+//     directly (e.g. fontSize + 1 or + 2) for tighter spacing.
+//   - maxChars: how many characters that paper accepts while typing (see
+//     the keydown listener further down). There's still no clipping, so
+//     this is the actual guard against a note overflowing past the bottom
+//     of its own art — lower it for a small paper, raise it for a big one.
+//     Falls back to NOTE_MAX_CHARS if omitted.
 // To tune one: open the note in-game (drag it onto a magnet, click it, type
 // some filler text) and nudge these until it sits the way you want.
 const NOTE_TEXT_BOX = {
-  fridge_paper1: { left: 70, top: 60, width: 590, height: 600, fontSize: 20 },
-  fridge_paper2: { left: 40, top: 40, width: 366, height: 300, fontSize: 20 },
-  fridge_paper3: { left: 40, top: 50, width: 460, height: 340, fontSize: 20 },
-  fridge_paper4: { left: 55, top: 60, width: 470, height: 900, fontSize: 20 },
-  fridge_paper5: { left: 60, top: 100, width: 640, height: 340, fontSize: 20 },
-  fridge_paper6: { left: 40, top: 50, width: 420, height: 640, fontSize: 20 },
+  fridge_paper1: { left: 240, top: 160, width: 400, fontSize: 23, lineHeight: 22, maxChars: 90 },
+  fridge_paper2: { left: 40, top: 50, width: 366, fontSize: 20, lineHeight: 22, maxChars: 55 },
+  fridge_paper3: { left: 60, top: 70, width: 460, fontSize: 20, lineHeight: 22, maxChars: 78 },
+  fridge_paper4: { left: 60, top: 60, width: 470, fontSize: 20, lineHeight: 22, maxChars: 200 },
+  fridge_paper5: { left: 85, top: 100, width: 630, fontSize: 20, lineHeight: 22, maxChars: 98 },
+  fridge_paper6: { left: 98, top: 150, width: 355, fontSize: 20, lineHeight: 22, maxChars: 190 },
 };
 const FRIDGE_DRAWER_FILENAME = "fridge_paper drawer"; // filename really does have a space in it
 [...MAGNET_FILENAMES, ...FRIDGE_PAPER_FILENAMES, FRIDGE_DRAWER_FILENAME].forEach(fridgeImage);
@@ -1783,17 +1796,7 @@ function drawFridgeNote(note) {
   if (editingNote === note && Math.floor(performance.now() / 500) % 2 === 0) text += "|";
   // wrapText measures with ctx.font, so it must be set (above) before this call.
   const lines = wrapText(text, boxW);
-  const baseLineHeight = box.lineHeight || box.fontSize + 4;
-  // If the wrapped lines don't naturally reach as far down as `height` says
-  // there's room for, spread them out (more space between lines) until they
-  // do — capped so a one- or two-line note doesn't blow up into huge gaps.
-  // This is what actually makes `height` do something: taller box -> text
-  // reaches further down the paper, shorter box -> lines stay close together.
-  let lineHeight = baseLineHeight;
-  if (lines.length > 1) {
-    const stretched = (box.height * NOTE_SCALE) / lines.length;
-    lineHeight = Math.min(Math.max(baseLineHeight, stretched), baseLineHeight * 2.2);
-  }
+  const lineHeight = box.lineHeight || box.fontSize + 4;
   lines.forEach((line, i) => ctx.fillText(line, boxX, boxY + i * lineHeight));
   ctx.restore();
 }
@@ -2174,12 +2177,14 @@ window.addEventListener("mouseup", () => {
 window.addEventListener("keydown", (e) => {
   if (!editingNote) return;
 
+  const maxChars = NOTE_TEXT_BOX[editingNote.filename].maxChars || NOTE_MAX_CHARS;
+
   if (e.key === "Backspace") {
     editingNote.text = editingNote.text.slice(0, -1);
     e.preventDefault();
   } else if (e.key === "Enter" || e.key === "Escape") {
     editingNote = null;
-  } else if (e.key.length === 1 && editingNote.text.length < NOTE_MAX_CHARS) {
+  } else if (e.key.length === 1 && editingNote.text.length < maxChars) {
     editingNote.text += e.key;
   }
 });
