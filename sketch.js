@@ -51,18 +51,23 @@ let images = {
       // Opens bedpopup — see the "BED MECHANIC" section further down for the
       // covers/quilt pull-down and scattered draggable objects.
       {
-        id: "bed", path: "main_room/bed.png", coordinates_by_percentage: [11.3, 28], scale: 1, shake: true,
+        // The bed is a big element, so the default shake angle reads as much
+        // more motion than on smaller props — dialed down to a subtler wobble.
+        id: "bed", path: "main_room/bed.png", coordinates_by_percentage: [11.3, 28], scale: 1, shake: true, shakeMaxDegrees: 1,
         children: [
           {
-            // bedbase.png (and its siblings pillow/covers/quilt, all drawn by
-            // drawBedScene rather than as ordinary `children`) were shrunk
-            // with headroom (native 900x1201 for a ~675x901 on-screen size,
-            // scale 0.75) rather than pixel-exact — a pixel-exact shrink is
-            // what made fridge_pen.png (see PEN_SCALE further down) go blurry
-            // once it needed to be drawn any bigger than its file's own native
-            // size, so this leaves slack instead of cutting it that close.
-            id: "bedpopup", path: "bed/bedbase.png",
-            coordinates_by_percentage: [50, 50], scale: 0.75,
+            // newbedbase.png replaced the old bedbase.png (900x1201, scale
+            // 0.75, ~675x901 on-screen) with art at the bed illustration's
+            // full native resolution (2048x2732 — exactly BED_MASTER_W/H
+            // further down, the same master the bedobject_*/pillow/covers/
+            // quilt centerFracs were measured against). 0.3296 is the
+            // recomputed scale that reproduces that same ~675x901 footprint
+            // (average of the width- and height-matching ratios, same trick
+            // as bank_home.png's 0.6124 above) — no headroom-for-blur concern
+            // here since the new file is already far higher-res than it's
+            // ever drawn at.
+            id: "bedpopup", path: "bed/newbedbase.png",
+            coordinates_by_percentage: [50, 50], scale: 0.3296,
             do_dark_background: true,
           },
         ],
@@ -477,7 +482,7 @@ function shakeAngleRadians(id, maxDegrees = SHAKE_MAX_DEGREES, periodMs = SHAKE_
 const BOUNCE_PERIOD_MS = 1900;
 const BOUNCE_PULSE_MS = 260;
 const BOUNCE_GAP_MS = 160;
-const BOUNCE_HEIGHT_PX = 8;
+const BOUNCE_HEIGHT_PX = 4;
 function bounceOffsetY(id) {
   const phase = [...id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
   const t = (performance.now() + phase * 137) % BOUNCE_PERIOD_MS;
@@ -1304,7 +1309,7 @@ function wizardGameRect(node) {
 // uses for its own freeze/flash state.
 
 const WIZARD_MUSIC_FILENAME = "wizard_background_music";
-const WIZARD_MUSIC_MAX_VOLUME = 0.25;
+const WIZARD_MUSIC_MAX_VOLUME = 0.15;
 const WIZARD_MUSIC_FADE_MS = 1500;
 
 let wizardMusicAudio = null;
@@ -2525,7 +2530,7 @@ function draw() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      safeDrawImage(node.img, node.coordinates_by_percentage, node.scale, node.id, node.shake && isActiveLayer ? shakeAngleRadians(node.id) : 0, node.bounce && isActiveLayer ? bounceOffsetY(node.id) : 0);
+      safeDrawImage(node.img, node.coordinates_by_percentage, node.scale, node.id, node.shake && isActiveLayer ? shakeAngleRadians(node.id, node.shakeMaxDegrees) : 0, node.bounce && isActiveLayer ? bounceOffsetY(node.id) : 0);
       if (node.text) safeTry(`affirmation text: ${node.id}`, () => drawAffirmationText(node));
       if (node.id === "coffeecounter") safeTry("coffee counter", drawCoffeeCounter);
       if (node.id === "bank_home") safeTry("bank balance", () => drawBankBalance(node));
@@ -2537,7 +2542,7 @@ function draw() {
 
       node.children.forEach((child) => {
         if (hidden.has(child.id) || !child.img) return;
-        safeDrawImage(child.img, child.coordinates_by_percentage, child.scale, child.id, child.shake && isActiveLayer ? shakeAngleRadians(child.id) : 0, child.bounce && isActiveLayer ? bounceOffsetY(child.id) : 0);
+        safeDrawImage(child.img, child.coordinates_by_percentage, child.scale, child.id, child.shake && isActiveLayer ? shakeAngleRadians(child.id, child.shakeMaxDegrees) : 0, child.bounce && isActiveLayer ? bounceOffsetY(child.id) : 0);
       });
 
       // Drawn as part of the room layer (rather than always-on-top like
