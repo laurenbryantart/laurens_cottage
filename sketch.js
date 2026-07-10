@@ -204,7 +204,10 @@ let images = {
         ],
       },
       { path: "main_room/paper.png", coordinates_by_percentage: [34.0, 70.3], scale: 1 },
-      { path: "main_room/drawing.png", coordinates_by_percentage: [52.7, 26], scale: 1 },
+      // Opens laurenbryantart.com — see the "drawing" click handling in the
+      // mousedown listener further down, same special-case pattern as the
+      // calendar. Bounces (rather than shakes) to invite a click.
+      { path: "main_room/drawing.png", coordinates_by_percentage: [52.7, 26], scale: 1, bounce: true },
       { path: "main_room/laundry.png", coordinates_by_percentage: [26, 29], scale: 1 },
 
       // Clicking the coffeemaker opens the coffee counter minigame — see
@@ -248,6 +251,7 @@ function normalize(node) {
   if (node.hide === undefined) node.hide = [];
   if (node.do_dark_background === undefined) node.do_dark_background = false;
   if (node.shake === undefined) node.shake = false;
+  if (node.bounce === undefined) node.bounce = false;
   node.path = IMAGES_FOLDER + node.path;
   node.children.forEach(normalize);
 }
@@ -269,6 +273,7 @@ function findNodeById(node, id) {
 
 const desktopNode = findNodeById(root, "desktop");
 const calendarNode = findNodeById(root, "calendar");
+const drawingNode = findNodeById(root, "drawing");
 const alertNode = findNodeById(root, "alert_compromised_wizard");
 const fridgeNode = findNodeById(root, "fridgepopup");
 const bedNode = findNodeById(root, "bedpopup");
@@ -463,7 +468,30 @@ function shakeAngleRadians(id, maxDegrees = SHAKE_MAX_DEGREES, periodMs = SHAKE_
   return (Math.sin(t * Math.PI * 2) * maxDegrees * Math.PI) / 180;
 }
 
-function safeDrawImage(img, coordinates_by_percentage, scale, label, rotationRadians = 0) {
+// Same "bounce bounce ... pause" idle idea as the fridge drawer
+// (fridgeDrawerBounceOffsetY) — two quick up-and-back-down pops,
+// BOUNCE_GAP_MS apart, then a long pause before the pair repeats — but
+// reusable for any node marked `bounce: true`, with the same per-id phase
+// offset trick as shakeAngleRadians so multiple bouncing things don't move
+// in lockstep.
+const BOUNCE_PERIOD_MS = 1900;
+const BOUNCE_PULSE_MS = 260;
+const BOUNCE_GAP_MS = 160;
+const BOUNCE_HEIGHT_PX = 8;
+function bounceOffsetY(id) {
+  const phase = [...id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+  const t = (performance.now() + phase * 137) % BOUNCE_PERIOD_MS;
+  const secondPulseStart = BOUNCE_PULSE_MS + BOUNCE_GAP_MS;
+
+  let pulseT = -1;
+  if (t < BOUNCE_PULSE_MS) pulseT = t;
+  else if (t >= secondPulseStart && t < secondPulseStart + BOUNCE_PULSE_MS) pulseT = t - secondPulseStart;
+  if (pulseT < 0) return 0; // the pause between pairs
+
+  return -Math.sin((pulseT / BOUNCE_PULSE_MS) * Math.PI) * BOUNCE_HEIGHT_PX;
+}
+
+function safeDrawImage(img, coordinates_by_percentage, scale, label, rotationRadians = 0, offsetY = 0) {
   try {
     if (!img) return;
     if (!img.complete || img.naturalWidth === 0) return;
@@ -474,12 +502,12 @@ function safeDrawImage(img, coordinates_by_percentage, scale, label, rotationRad
 
     if (rotationRadians) {
       ctx.save();
-      ctx.translate(x + w / 2, y + h / 2);
+      ctx.translate(x + w / 2, y + h / 2 + offsetY);
       ctx.rotate(rotationRadians);
       ctx.drawImage(img, -w / 2, -h / 2, w, h);
       ctx.restore();
     } else {
-      ctx.drawImage(img, x, y, w, h);
+      ctx.drawImage(img, x, y + offsetY, w, h);
     }
   } catch (err) {
     pushError(`drawImage failed: ${label} (${err.message})`);
@@ -2497,7 +2525,7 @@ function draw() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      safeDrawImage(node.img, node.coordinates_by_percentage, node.scale, node.id, node.shake && isActiveLayer ? shakeAngleRadians(node.id) : 0);
+      safeDrawImage(node.img, node.coordinates_by_percentage, node.scale, node.id, node.shake && isActiveLayer ? shakeAngleRadians(node.id) : 0, node.bounce && isActiveLayer ? bounceOffsetY(node.id) : 0);
       if (node.text) safeTry(`affirmation text: ${node.id}`, () => drawAffirmationText(node));
       if (node.id === "coffeecounter") safeTry("coffee counter", drawCoffeeCounter);
       if (node.id === "bank_home") safeTry("bank balance", () => drawBankBalance(node));
@@ -2509,7 +2537,7 @@ function draw() {
 
       node.children.forEach((child) => {
         if (hidden.has(child.id) || !child.img) return;
-        safeDrawImage(child.img, child.coordinates_by_percentage, child.scale, child.id, child.shake && isActiveLayer ? shakeAngleRadians(child.id) : 0);
+        safeDrawImage(child.img, child.coordinates_by_percentage, child.scale, child.id, child.shake && isActiveLayer ? shakeAngleRadians(child.id) : 0, child.bounce && isActiveLayer ? bounceOffsetY(child.id) : 0);
       });
 
       // Drawn as part of the room layer (rather than always-on-top like
@@ -2692,6 +2720,13 @@ canvas.addEventListener("mousedown", () => {
   // the main room itself (nothing else open on top of it).
   if (openPath.length === 1 && hitTest(calendarNode, mouseX, mouseY)) {
     window.open("https://alexroginski.com/stuff_to_do/", "_blank", "noopener,noreferrer");
+    return;
+  }
+
+  // The drawing has no children either — same special-case pattern as the
+  // calendar, just linking out to the artist's own site instead.
+  if (openPath.length === 1 && hitTest(drawingNode, mouseX, mouseY)) {
+    window.open("https://laurenbryantart.com/", "_blank", "noopener,noreferrer");
     return;
   }
 
