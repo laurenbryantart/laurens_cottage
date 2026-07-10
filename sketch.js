@@ -48,7 +48,25 @@ let images = {
   room_background: {
     path: "main_room/room_background.png", coordinates_by_percentage: [0, 0], scale: 1,
     children: [
-      { path: "main_room/bed.png", coordinates_by_percentage: [11.3, 28], scale: 1 },
+      // Opens bedpopup — see the "BED MECHANIC" section further down for the
+      // covers/quilt pull-down and scattered draggable objects.
+      {
+        id: "bed", path: "main_room/bed.png", coordinates_by_percentage: [11.3, 28], scale: 1, shake: true,
+        children: [
+          {
+            // bedbase.png (and its siblings pillow/covers/quilt, all drawn by
+            // drawBedScene rather than as ordinary `children`) were shrunk
+            // with headroom (native 900x1201 for a ~675x901 on-screen size,
+            // scale 0.75) rather than pixel-exact — a pixel-exact shrink is
+            // what made fridge_pen.png (see PEN_SCALE further down) go blurry
+            // once it needed to be drawn any bigger than its file's own native
+            // size, so this leaves slack instead of cutting it that close.
+            id: "bedpopup", path: "bed/bedbase.png",
+            coordinates_by_percentage: [50, 50], scale: 0.75,
+            do_dark_background: true,
+          },
+        ],
+      },
       { path: "main_room/pattern.png", coordinates_by_percentage: [50.1, 8.5], scale: 1 },
       // Its only job is linking out to the "stuff to do" page — see the
       // calendar click handling in the mousedown listener further down.
@@ -253,6 +271,7 @@ const desktopNode = findNodeById(root, "desktop");
 const calendarNode = findNodeById(root, "calendar");
 const alertNode = findNodeById(root, "alert_compromised_wizard");
 const fridgeNode = findNodeById(root, "fridgepopup");
+const bedNode = findNodeById(root, "bedpopup");
 
 // -------------------- FONTS --------------------
 
@@ -372,11 +391,32 @@ loadImages(root);
 
 const SOUND_FOLDER = "soundeffects/";
 const soundCache = {};
+
+// Plain HTMLMediaElement.volume tops out at 1 (its recorded level), so a
+// sound that still reads as too quiet at full volume needs actual gain, not
+// just a volume tweak — routed through Web Audio for whichever filenames are
+// listed here. Shakeshake reads as quiet next to the room's other effects,
+// so it gets a genuine 30% boost past its recorded level.
+const SOUND_VOLUME_BOOST = {
+  Shakeshake: 1.3,
+};
+let audioContext = null;
+
 function loadSound(filename) {
   if (!soundCache[filename]) {
     const audio = new Audio(`${SOUND_FOLDER}${filename}.mp3`);
     audio.onerror = () => pushError(`Missing sound: ${SOUND_FOLDER}${filename}.mp3`);
     soundCache[filename] = audio;
+
+    const boost = SOUND_VOLUME_BOOST[filename];
+    if (boost) {
+      safeTry(`sound boost: ${filename}`, () => {
+        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const gain = audioContext.createGain();
+        gain.gain.value = boost;
+        audioContext.createMediaElementSource(audio).connect(gain).connect(audioContext.destination);
+      });
+    }
   }
   return soundCache[filename];
 }
@@ -972,6 +1012,8 @@ function placeHeldItem(x, y) {
     if (TOPPING_LIKE.includes(item.kind) && targetMug.state !== "empty") {
       targetMug.topping = item.kind;
       applied = true;
+      if (item.kind === "cinnamon") playSound("Shakeshake");
+      if (item.kind === "whip") playSound("Whipped cream");
     }
     if (applied) lastCoffeeMug = targetMug;
   }
@@ -1024,8 +1066,9 @@ function handleCoffeeCounterClick(x, y) {
       if (item.kind === "mug" && item.state !== "empty") lastCoffeeMug = item;
       // The clink only plays the first time each specific mug gets chosen —
       // picking the same one up again later (to carry it, refill it, etc.)
-      // stays quiet.
-      if (item.kind === "mug" && !item.pickedUp) {
+      // stays quiet. Skipped entirely for papercup — it's paper, not glass,
+      // so the clink doesn't make sense for it.
+      if (item.kind === "mug" && !item.pickedUp && item.mugType !== "papercup") {
         item.pickedUp = true;
         playSound("Glasses clinking");
       }
@@ -1221,6 +1264,67 @@ function wizardGameRect(node) {
   const h = node.img.height * node.scale;
   const { x, y } = topLeftFor(node.coordinates_by_percentage, w, h);
   return { x, y, w, h };
+}
+
+// -------------------- WIZARD MUSIC --------------------
+// Background music for the wizard minigame only — looped, faded in when the
+// game opens and faded back out however it's left (clicking outside it,
+// closing back through the desktop, or any other path closePopup gets
+// called from). There's no single "wizard game closed" event to hook, so
+// the fade-out is driven by checking every frame instead — same "check every
+// frame rather than hook every close path" trick drawWizardCursor already
+// uses for its own freeze/flash state.
+
+const WIZARD_MUSIC_FILENAME = "wizard_background_music";
+const WIZARD_MUSIC_MAX_VOLUME = 0.25;
+const WIZARD_MUSIC_FADE_MS = 1500;
+
+let wizardMusicAudio = null;
+let wizardMusicTarget = 0; // 0 or WIZARD_MUSIC_MAX_VOLUME — where the current fade is headed
+let wizardMusicFadeStart = 0; // performance.now() when the current fade began
+let wizardMusicFadeFromVolume = 0; // audio.volume at the moment the current fade began
+let wizardMusicWasOpen = false; // last frame's open/closed state, to catch the close transition
+
+function wizardMusic() {
+  if (!wizardMusicAudio) {
+    wizardMusicAudio = new Audio(`${SOUND_FOLDER}${WIZARD_MUSIC_FILENAME}.mp3`);
+    wizardMusicAudio.loop = true;
+    wizardMusicAudio.volume = 0;
+    wizardMusicAudio.onerror = () => pushError(`Missing sound: ${SOUND_FOLDER}${WIZARD_MUSIC_FILENAME}.mp3`);
+  }
+  return wizardMusicAudio;
+}
+
+// Called directly from the app_wizard click handler (not just left to the
+// per-frame check below) so the play() call happens synchronously inside a
+// real user gesture — browsers block autoplay otherwise.
+function startWizardMusic() {
+  const audio = wizardMusic();
+  wizardMusicTarget = WIZARD_MUSIC_MAX_VOLUME;
+  wizardMusicFadeStart = performance.now();
+  wizardMusicFadeFromVolume = audio.volume;
+  wizardMusicWasOpen = true;
+  if (audio.paused) {
+    audio.currentTime = 0;
+    audio.play().catch((err) => pushError(`Sound playback failed: ${WIZARD_MUSIC_FILENAME} (${err.message})`));
+  }
+}
+
+function updateWizardMusic() {
+  const isOpen = openPath[openPath.length - 1].id === "wizardgame";
+  const audio = wizardMusic();
+
+  if (!isOpen && wizardMusicWasOpen) {
+    wizardMusicTarget = 0;
+    wizardMusicFadeStart = performance.now();
+    wizardMusicFadeFromVolume = audio.volume;
+    wizardMusicWasOpen = false;
+  }
+
+  const t = Math.min((performance.now() - wizardMusicFadeStart) / WIZARD_MUSIC_FADE_MS, 1);
+  audio.volume = wizardMusicFadeFromVolume + (wizardMusicTarget - wizardMusicFadeFromVolume) * t;
+
+  if (!isOpen && audio.volume <= 0 && !audio.paused) audio.pause();
 }
 
 function wizardDifficulty(now) {
@@ -1963,6 +2067,208 @@ function drawFridgePenCursor() {
   ctx.restore();
 }
 
+// -------------------- BED MECHANIC --------------------
+// Clicking bed opens bedpopup (a single do_dark_background layer, the same
+// trick fridgepopup/journalpopup use): bedbase.png (the bed itself) under a
+// made bed — covers.png over the body with quilt.png folded over its foot
+// end, and pillow.png sitting at the head on top of both, itself draggable.
+// covers/quilt were shrunk to the exact same footprint as bedbase (see the
+// "BED MECHANIC" comment on the bedpopup node up in `images`), so both just
+// draw at bedRect() with no per-layer offset math. Dragging anywhere on the
+// covers/quilt slides both down together — one rigid "blanket" unit, quilt
+// attached to the bottom of the covers, same idea as the fridge drawer's
+// vertical-only slide — to reveal the bedbase surface and whatever's
+// scattered on it: a set of small props (bedobject_*.png), plus the pillow
+// itself, that only become draggable once whatever's on top of them (the
+// blanket, or the pillow) has moved out of the way. bedobject_tooth is
+// drawn tucked under the pillow's own rest position, tooth-fairy-style —
+// it's revealed by dragging the pillow aside, not the blanket.
+
+const BED_FOLDER = IMAGES_FOLDER + "bed/";
+const bedImageCache = {};
+function bedImage(filename) {
+  if (!bedImageCache[filename]) {
+    const img = new Image();
+    img.onerror = () => pushError(`Missing image: ${BED_FOLDER}${filename}.png`);
+    img.src = `${BED_FOLDER}${filename}.png`;
+    bedImageCache[filename] = img;
+  }
+  return bedImageCache[filename];
+}
+
+// Every prop's (and the pillow's own) centerFrac is its bounding-box center
+// from the original, pre-crop bed illustration (2048x2732), as a fraction of
+// that illustration's width/height — so on first open it lands exactly
+// where the artist actually drew it, not a random scatter like the fridge
+// magnets get.
+const PILLOW_CENTER_FRAC = [0.4666, 0.188];
+
+const BED_OBJECTS = [
+  { filename: "bedobject_dino", centerFrac: [0.6003, 0.4043] },
+  { filename: "bedobject_flower", centerFrac: [0.4519, 0.6698] },
+  { filename: "bedobject_key", centerFrac: [0.5979, 0.6715] },
+  { filename: "bedobject_pencil", centerFrac: [0.3359, 0.6109] },
+  { filename: "bedobject_photo", centerFrac: [0.3271, 0.7432] },
+  { filename: "bedobject_popcornbag", centerFrac: [0.4031, 0.4799] },
+  { filename: "bedobject_popcornpiece1", centerFrac: [0.4006, 0.3739] },
+  { filename: "bedobject_popcornpiece2", centerFrac: [0.4529, 0.3852] },
+  { filename: "bedobject_stickers", centerFrac: [0.6506, 0.7599] },
+  { filename: "bedobject_tooth", centerFrac: [0.4609, 0.218] },
+  { filename: "bedobject_vitamins", centerFrac: [0.5366, 0.7542] },
+];
+[...BED_OBJECTS.map((o) => o.filename), "pillow", "covers", "quilt"].forEach(bedImage);
+
+// Unlike pillow/covers/quilt (each shrunk to bedbase's own full-illustration
+// footprint, so they can just be stretched to fill bedRect directly), the
+// bedobject_*.png files were cropped, not resized — their pixel dimensions
+// are still real bed-illustration pixels. BED_MASTER_W/H is that original
+// illustration's size, so an object's on-screen size can be worked out as
+// (its own cropped pixel size) x (bedRect's width / BED_MASTER_W) — the same
+// ratio the illustration itself was shrunk by to become bedbase.png.
+const BED_MASTER_W = 2048;
+const BED_MASTER_H = 2732;
+
+// covers.png's own top edge, as a fraction of the bed art's height — read
+// off its pre-crop bounding box, same source as the centerFracs above.
+const BED_COVERS_TOP_FRAC = 0.304;
+
+// How far down (as a fraction of the bed art's own on-screen height) the
+// covers/quilt can be dragged — far enough to clear the whole base without
+// sliding off past the popup's own bottom edge.
+const BED_COVERS_MAX_PULL_FRACTION = 0.62;
+
+let bedObjects = null; // populated on first open by initBedObjects — persists after that, like fridgeMagnets
+let pillowItem = null; // populated alongside bedObjects — a draggable item in its own right, not part of that array (see drawBedScene for why it needs its own z-order)
+let bedCoversPullPx = 0; // 0 = fully up (bed made); grows as the covers are dragged down
+
+let heldBedObject = null; // either a bedObjects entry or pillowItem itself
+let bedObjectDragOffset = { x: 0, y: 0 };
+let draggingBedCovers = false;
+let bedCoversDragOffsetY = 0;
+
+function bedRect() {
+  const w = bedNode.img.width * bedNode.scale;
+  const h = bedNode.img.height * bedNode.scale;
+  const { x, y } = topLeftFor(bedNode.coordinates_by_percentage, w, h);
+  return { x, y, w, h };
+}
+
+function initBedObjects() {
+  const rect = bedRect();
+  bedObjects = BED_OBJECTS.map((o) => ({
+    id: o.filename,
+    filename: o.filename,
+    coordinates_by_percentage: pixelsToPercentage(rect.x + o.centerFrac[0] * rect.w, rect.y + o.centerFrac[1] * rect.h),
+  }));
+  pillowItem = {
+    id: "pillow",
+    filename: "pillow",
+    coordinates_by_percentage: pixelsToPercentage(rect.x + PILLOW_CENTER_FRAC[0] * rect.w, rect.y + PILLOW_CENTER_FRAC[1] * rect.h),
+  };
+}
+
+function bedObjectRect(obj) {
+  const img = bedImage(obj.filename);
+  const objectScale = bedRect().w / BED_MASTER_W;
+  const w = img.width * objectScale;
+  const h = img.height * objectScale;
+  const { x, y } = topLeftFor(obj.coordinates_by_percentage, w, h);
+  return { x, y, w, h };
+}
+
+function hitTestBedObject(obj, x, y) {
+  const r = bedObjectRect(obj);
+  return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+}
+
+function bedCoversTopY() {
+  const rect = bedRect();
+  return rect.y + BED_COVERS_TOP_FRAC * rect.h + bedCoversPullPx;
+}
+
+// A prop only counts as grabbable once whatever was drawn on top of it has
+// moved out of the way — either the blanket's current top edge has moved
+// down past its own center, or (bedobject_tooth's case) the pillow itself
+// has been dragged off of it. The overlap check is generic rather than
+// tooth-specific, so dragging the pillow on top of any other prop hides that
+// one too, same as a real pillow would.
+function bedObjectUncovered(obj) {
+  const r = bedObjectRect(obj);
+  const coveredByBlanket = r.y + r.h / 2 >= bedCoversTopY();
+  const coveredByPillow = obj !== pillowItem && rectsOverlap(r, bedObjectRect(pillowItem));
+  return !coveredByBlanket && !coveredByPillow;
+}
+
+function inBedCoversBand(x, y) {
+  const rect = bedRect();
+  const topY = bedCoversTopY();
+  return x >= rect.x && x <= rect.x + rect.w && y >= topY && y <= rect.y + rect.h;
+}
+
+function clampBedCoversPull(px) {
+  const rect = bedRect();
+  return Math.min(Math.max(px, 0), rect.h * BED_COVERS_MAX_PULL_FRACTION);
+}
+
+function beginDragBedObject(obj) {
+  const r = bedObjectRect(obj);
+  heldBedObject = obj;
+  bedObjectDragOffset = { x: mouseX - (r.x + r.w / 2), y: mouseY - (r.y + r.h / 2) };
+  // Bring it to the front of the array so it's both drawn on top and wins
+  // hit-testing priority over whatever it may now overlap. pillowItem isn't
+  // part of this array — it's always drawn/hit-tested last regardless (see
+  // drawBedScene) — so there's nothing to reorder for it.
+  if (obj !== pillowItem) {
+    bedObjects = bedObjects.filter((o) => o !== obj);
+    bedObjects.push(obj);
+  }
+}
+
+function updateDraggedBedObject() {
+  const rect = bedRect();
+  const img = bedImage(heldBedObject.filename);
+  const objectScale = rect.w / BED_MASTER_W;
+  const w = img.width * objectScale;
+  const h = img.height * objectScale;
+  const targetX = mouseX - bedObjectDragOffset.x;
+  const targetY = mouseY - bedObjectDragOffset.y;
+  const cx = Math.min(Math.max(targetX, rect.x + w / 2), rect.x + rect.w - w / 2);
+  const cy = Math.min(Math.max(targetY, rect.y + h / 2), rect.y + rect.h - h / 2);
+  heldBedObject.coordinates_by_percentage = pixelsToPercentage(cx, cy);
+}
+
+function drawBedObject(obj) {
+  const img = bedImage(obj.filename);
+  if (!img.complete || img.naturalWidth === 0) return;
+  const r = bedObjectRect(obj);
+  ctx.drawImage(img, r.x, r.y, r.w, r.h);
+}
+
+// Draw order (back to front): bedbase itself (drawn as an ordinary popup-tree
+// node, not here), every prop not currently held (this is what puts
+// bedobject_tooth underneath the pillow), the covers, the quilt on top of
+// the covers, the pillow on top of that (unless it's the one being dragged),
+// then whichever item — a prop or the pillow — is being dragged, on top of
+// everything so it never disappears back under the blanket/pillow mid-drag.
+function drawBedScene() {
+  if (!bedObjects || !pillowItem) return;
+  const rect = bedRect();
+
+  bedObjects.forEach((obj) => {
+    if (obj !== heldBedObject) drawBedObject(obj);
+  });
+
+  const coversImg = bedImage("covers");
+  if (coversImg.complete && coversImg.naturalWidth !== 0) ctx.drawImage(coversImg, rect.x, rect.y + bedCoversPullPx, rect.w, rect.h);
+
+  const quiltImg = bedImage("quilt");
+  if (quiltImg.complete && quiltImg.naturalWidth !== 0) ctx.drawImage(quiltImg, rect.x, rect.y + bedCoversPullPx, rect.w, rect.h);
+
+  if (pillowItem !== heldBedObject) drawBedObject(pillowItem);
+
+  if (heldBedObject) drawBedObject(heldBedObject);
+}
+
 // -------------------- CAMERA APP --------------------
 // Clicking app_camera opens cameraapp (a single do_dark_background layer, the
 // same trick bank_home/coffeecounter/wizardgame/journalpopup use). The photo
@@ -2198,6 +2504,7 @@ function draw() {
       if (node.id === "wizardgame") safeTry("wizard game", () => drawWizardGame(node));
       if (node.id === "journalpopup") safeTry("journal", () => drawJournal(node));
       if (node.id === "fridgepopup") safeTry("fridge", drawFridgeScene);
+      if (node.id === "bedpopup") safeTry("bed", drawBedScene);
       if (node.id === "cameraapp") safeTry("camera app", () => drawCameraApp(node));
 
       node.children.forEach((child) => {
@@ -2214,6 +2521,7 @@ function draw() {
     safeTry("carried mug", drawCarriedMug);
     safeTry("wizard cursor", drawWizardCursor);
     safeTry("fridge pen cursor", drawFridgePenCursor);
+    safeTry("wizard music", updateWizardMusic);
     drawErrors();
   } catch (err) {
     pushError(`FATAL DRAW LOOP: ${err.message}`);
@@ -2310,6 +2618,26 @@ canvas.addEventListener("mousemove", (e) => {
       inDrawerBand(mouseX, mouseY) ||
       fridgeMagnets.some((m) => hitTestMagnet(m, mouseX, mouseY)) ||
       fridgeNotes.some((n) => n.location === "fridge" && hitTestFridgeNote(n, mouseX, mouseY));
+    canvas.style.cursor = hovering ? "grab" : "default";
+    return;
+  }
+
+  if (openPath[openPath.length - 1].id === "bedpopup") {
+    if (draggingBedCovers) {
+      bedCoversPullPx = clampBedCoversPull(mouseY - bedCoversDragOffsetY);
+      canvas.style.cursor = "grabbing";
+      return;
+    }
+    if (heldBedObject) {
+      updateDraggedBedObject();
+      canvas.style.cursor = "grabbing";
+      return;
+    }
+
+    const hovering =
+      hitTestBedObject(pillowItem, mouseX, mouseY) ||
+      inBedCoversBand(mouseX, mouseY) ||
+      bedObjects.some((o) => bedObjectUncovered(o) && hitTestBedObject(o, mouseX, mouseY));
     canvas.style.cursor = hovering ? "grab" : "default";
     return;
   }
@@ -2416,6 +2744,24 @@ canvas.addEventListener("mousedown", () => {
     if (fridgeNote) { beginDragNote(fridgeNote); return; }
   }
 
+  // Clicking inside the bed scene checks the pillow first (it's always the
+  // topmost layer), then the covers/quilt band (drag the blanket), then
+  // whichever uncovered prop is topmost. A miss on all of those falls
+  // through to the generic click-outside-closes-the-popup logic further
+  // down, the same as every other app.
+  if (topNode.id === "bedpopup") {
+    if (hitTestBedObject(pillowItem, mouseX, mouseY)) { beginDragBedObject(pillowItem); return; }
+
+    if (inBedCoversBand(mouseX, mouseY)) {
+      draggingBedCovers = true;
+      bedCoversDragOffsetY = mouseY - bedCoversPullPx;
+      return;
+    }
+
+    const obj = [...bedObjects].reverse().find((o) => bedObjectUncovered(o) && hitTestBedObject(o, mouseX, mouseY));
+    if (obj) { beginDragBedObject(obj); return; }
+  }
+
   if (topNode.id === "cameraapp") {
     if (handleCameraAppClick(mouseX, mouseY)) return;
   }
@@ -2476,6 +2822,7 @@ canvas.addEventListener("mousedown", () => {
       openPath.push(...node.children);
     } else if (node.id === "app_wizard") {
       resetWizardGame(); // fresh score/pieces every time it's opened
+      startWizardMusic();
       openPath.push(...node.children);
     } else if (node.id === "journal") {
       resetJournal(); // start back on the most recent entry every time it's opened
@@ -2486,6 +2833,9 @@ canvas.addEventListener("mousedown", () => {
     } else if (node.id === "notes") {
       if (!fridgeMagnets) initFridgeMagnets(); // first open only — state persists after that
       if (!fridgeNotes) initFridgeNotes();
+      openPath.push(...node.children);
+    } else if (node.id === "bed") {
+      if (!bedObjects) initBedObjects(); // first open only — state persists after that
       openPath.push(...node.children);
     } else {
       openPath.push(...node.children);
@@ -2521,6 +2871,8 @@ window.addEventListener("mouseup", () => {
     finalizeNoteDrop();
     heldNote = null;
   }
+  draggingBedCovers = false;
+  heldBedObject = null;
 });
 
 // Typing on whichever fridge note is currently open for editing (see
