@@ -29,6 +29,8 @@ const JOURNAL_ENTRIES = [
   "July 4.                 We could only see the bottom half of the fireworks. They lit up the fog in neon colors, which was a sight to see in itself. They were shot from the Golden Gate Bridge. I shared a Long Drink with Alex.",
   "July 5.                 Spent a lot of today languishing indoors. I visited the park breifly. I climbed every hill in this city and sat at the park for 20 minutes, sliding off the grassy hill trying to draw.",
   "July 6.                 Work today like every day. Monotony eating itself and my standing desk is broken. Met Xyan at the pottery studio and made and destroyed a face.",
+  "July 8.                 Figure drawing tonight. Lovlier than I could have hoped for, though the first hour felt so miserable I almost slipped out on break. I met new friends and had the lovliest dinner.",
+  "July 9.                 Worked from home. Have been making slide decks like lives depend on it.",
 ];
 
 const APP_SIZE = 1; // app icon files were shrunk to match this exact display size
@@ -411,10 +413,14 @@ function topLeftFor(coordinates_by_percentage, w, h) {
 // things don't wobble in lockstep.
 const SHAKE_MAX_DEGREES = 3;
 const SHAKE_PERIOD_MS = 1600;
-function shakeAngleRadians(id) {
+// maxDegrees/periodMs default to the idle "look at me" wobble above, but a
+// caller can pass its own (e.g. the coffee machine's much quicker brewing
+// vibration further down) to get a differently-paced shake using this same
+// per-id phase-offset trick.
+function shakeAngleRadians(id, maxDegrees = SHAKE_MAX_DEGREES, periodMs = SHAKE_PERIOD_MS) {
   const phase = [...id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
-  const t = (performance.now() + phase * 137) / SHAKE_PERIOD_MS;
-  return (Math.sin(t * Math.PI * 2) * SHAKE_MAX_DEGREES * Math.PI) / 180;
+  const t = (performance.now() + phase * 137) / periodMs;
+  return (Math.sin(t * Math.PI * 2) * maxDegrees * Math.PI) / 180;
 }
 
 function safeDrawImage(img, coordinates_by_percentage, scale, label, rotationRadians = 0) {
@@ -792,6 +798,11 @@ const MACHINE_COORDS = [57.25, 40];
 const MACHINE_SCALE = 1; // machine images were shrunk to match this display size
 const CARAFE_SCALE = 1; // carafe_pouring.png was shrunk to match this display size
 const BREW_TIME_MS = 2500;
+// While brewing, the machine vibrates instead of the slow idle wobble above —
+// much tighter/quicker (smaller angle, much shorter period) so it reads as
+// the machine working rather than "click me".
+const BREWING_SHAKE_MAX_DEGREES = 1.5;
+const BREWING_SHAKE_PERIOD_MS = 180;
 
 // Milk and creamer both just move a mug from "coffee" to "coffee_milk" —
 // two different toppings with the same effect. Whip and cinnamon both sit
@@ -907,6 +918,23 @@ function pixelsToPercentage(x, y) {
   return [(x / canvas.width) * 100, (y / canvas.height) * 100];
 }
 
+// Cancels whatever's currently held so the counter (and the popup) can still
+// be left even when there's nowhere left to actually place it — e.g. the
+// carafe once every mug already has coffee in it, which placeHeldItem below
+// will never accept. The carafe returns to the machine (full again, ready to
+// pour once a mug frees up); anything else just snaps back to its own home
+// spot, the same place it'd end up dropping it off-counter.
+function cancelHeldItem() {
+  const item = heldItem;
+  if (item.kind === "carafe") {
+    coffeeItems = coffeeItems.filter((i) => i !== item);
+    machineState = "full";
+  } else {
+    item.coordinates_by_percentage = item.home;
+  }
+  heldItem = null;
+}
+
 // Sets whatever's held down at (x, y). If it lands on a mug in the right
 // state, the effect (pour coffee / add milk / add whip) applies — and on
 // success, milk/creamer/whip/cinnamon teleport back to their own starting
@@ -939,7 +967,7 @@ function placeHeldItem(x, y) {
     if (MILK_LIKE.includes(item.kind) && targetMug.state === "coffee") {
       targetMug.state = "coffee_milk";
       applied = true;
-      playSound("Pouring water");
+      playSound("Water to water 3");
     }
     if (TOPPING_LIKE.includes(item.kind) && targetMug.state !== "empty") {
       targetMug.topping = item.kind;
@@ -975,6 +1003,7 @@ function handleCoffeeCounterClick(x, y) {
     machineDiscovered = true; // stop shaking now that the user found it
     if (machineState === "empty") {
       machineState = "brewing";
+      playSound("Coffee machine 4 (yes)");
       setTimeout(() => {
         if (machineState === "brewing") machineState = "full";
       }, BREW_TIME_MS);
@@ -1070,7 +1099,13 @@ function drawPlacedMug() {
 }
 
 function drawCoffeeCounter() {
-  safeDrawImage(coffeeImage(machineImagePath()), MACHINE_COORDS, MACHINE_SCALE, "coffee machine", machineDiscovered ? 0 : shakeAngleRadians("coffee_machine"));
+  const machineShake =
+    machineState === "brewing"
+      ? shakeAngleRadians("coffee_machine", BREWING_SHAKE_MAX_DEGREES, BREWING_SHAKE_PERIOD_MS)
+      : machineDiscovered
+      ? 0
+      : shakeAngleRadians("coffee_machine");
+  safeDrawImage(coffeeImage(machineImagePath()), MACHINE_COORDS, MACHINE_SCALE, "coffee machine", machineShake);
 
   coffeeItems.forEach((item) => {
     if (item === heldItem) return; // drawn glued to the mouse instead, below
@@ -1444,9 +1479,12 @@ function drawJournal(node) {
 // Advances the paper (1 -> 2 -> 3 -> 1...) and descends the entry shown
 // (looping back to the top once it passes entry 1) on every click inside
 // the popup.
+const JOURNAL_PAPER_WOBBLE_SOUNDS = ["Paperwobble1", "Paperwobble2", "Paperwobble3"];
+
 function handleJournalClick() {
   journalPaperIndex = (journalPaperIndex + 1) % JOURNAL_PAPER_FILENAMES.length;
   journalEntryIndex = journalEntryIndex <= 0 ? JOURNAL_ENTRIES.length - 1 : journalEntryIndex - 1;
+  playSound(JOURNAL_PAPER_WOBBLE_SOUNDS[Math.floor(Math.random() * JOURNAL_PAPER_WOBBLE_SOUNDS.length)]);
 }
 
 // -------------------- FRIDGE MECHANIC --------------------
@@ -1562,6 +1600,13 @@ let draggingDrawer = false;
 let drawerDragOffsetY = 0;
 let fridgeDrawerY = null; // null = closed (peek only); set on first drag
 
+// The drawer bounces (peeking up a little, twice, then pausing) to catch a
+// first-time visitor's eye — same idea as machineDiscovered stopping the
+// coffee machine's shake once it's been found. Set true the moment the user
+// so much as touches the drawer band (dragging the drawer itself, or pulling
+// a note out of it), and stays true for good after that.
+let fridgeDrawerDiscovered = false;
+
 // Whichever fridge note is currently open for typing — text types into it via
 // the keydown listener further down, until a click elsewhere closes it.
 let editingNote = null;
@@ -1578,6 +1623,26 @@ function drawerRect() {
   const h = FRIDGE_DRAWER_NATIVE_H * FRIDGE_DRAWER_SCALE;
   const y = fridgeDrawerY === null ? canvas.height - FRIDGE_DRAWER_PEEK_PX : fridgeDrawerY;
   return { x: (canvas.width - w) / 2, y, w, h };
+}
+
+// "bounce bounce ... pause ... bounce bounce ... pause": two quick pops (each
+// a smooth up-and-back-down arc) FRIDGE_DRAWER_BOUNCE_GAP_MS apart, then a
+// long pause before the pair repeats. Purely a vertical draw-time offset (see
+// drawFridgeDrawer) — doesn't touch fridgeDrawerY or hit-testing.
+const FRIDGE_DRAWER_BOUNCE_PERIOD_MS = 1900;
+const FRIDGE_DRAWER_BOUNCE_PULSE_MS = 260;
+const FRIDGE_DRAWER_BOUNCE_GAP_MS = 160;
+const FRIDGE_DRAWER_BOUNCE_HEIGHT_PX = 16;
+function fridgeDrawerBounceOffsetY() {
+  const t = performance.now() % FRIDGE_DRAWER_BOUNCE_PERIOD_MS;
+  const secondPulseStart = FRIDGE_DRAWER_BOUNCE_PULSE_MS + FRIDGE_DRAWER_BOUNCE_GAP_MS;
+
+  let pulseT = -1;
+  if (t < FRIDGE_DRAWER_BOUNCE_PULSE_MS) pulseT = t;
+  else if (t >= secondPulseStart && t < secondPulseStart + FRIDGE_DRAWER_BOUNCE_PULSE_MS) pulseT = t - secondPulseStart;
+  if (pulseT < 0) return 0; // the pause between pairs
+
+  return -Math.sin((pulseT / FRIDGE_DRAWER_BOUNCE_PULSE_MS) * Math.PI) * FRIDGE_DRAWER_BOUNCE_HEIGHT_PX;
 }
 
 // Whether (x, y) falls within the drawer's own currently-visible rect —
@@ -1837,8 +1902,9 @@ function drawFridgeNote(note) {
 
 function drawFridgeDrawer() {
   const rect = drawerRect();
+  const bounce = fridgeDrawerDiscovered ? 0 : fridgeDrawerBounceOffsetY();
   const img = fridgeImage(FRIDGE_DRAWER_FILENAME);
-  if (img.complete && img.naturalWidth !== 0) ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h);
+  if (img.complete && img.naturalWidth !== 0) ctx.drawImage(img, rect.x, rect.y + bounce, rect.w, rect.h);
 
   fridgeNotes.forEach((note) => {
     if (note.location === "drawer" && note !== heldNote) drawFridgeNote(note);
@@ -1920,6 +1986,27 @@ function cameraImage(filename) {
 }
 const CAMERA_PHOTO_FILENAMES = [1, 2, 3, 4, 5].map((n) => `cameraphoto${n}`);
 CAMERA_PHOTO_FILENAMES.forEach(cameraImage);
+
+// A plain outline (transparent inside) drawn as a duplicate of the same frame
+// each photo was drawn in, so it lines up with any of them — see
+// drawCameraApp, which draws it stretched to exactly the main photo's own
+// drawn rect rather than "contain"-fit on its own, so it still lines up even
+// though the photos aren't all quite the same aspect ratio. Only overlaid on
+// the big main photo, not the filmstrip thumbnails — it read as too busy
+// shrunk down that small.
+const CAMERA_FRAME_FILENAME = "cameraframe";
+cameraImage(CAMERA_FRAME_FILENAME);
+
+// Nudge these to line the frame up with the photos exactly — offsets are
+// fractions of the main photo's own drawn width/height (not raw canvas
+// pixels), so they hold steady whatever size the camera app happens to be
+// scaled to. Positive CAMERA_FRAME_OFFSET_X/Y shifts the frame right/down;
+// CAMERA_FRAME_SCALE grows (>1) or shrinks (<1) it around the photo's own
+// center, in case the frame needs to sit slightly bigger/smaller than the
+// photo itself rather than exactly on top of it.
+const CAMERA_FRAME_OFFSET_X = 0;
+const CAMERA_FRAME_OFFSET_Y = 0;
+const CAMERA_FRAME_SCALE = 1.008;
 
 let cameraPhotoIndex = 0;
 // Each drawn thumbnail's actual on-screen rect (index-matched to
@@ -2028,7 +2115,16 @@ function drawContainImage(img, rect, paddingFraction = 1) {
 // rect (keyed by index) so click handling can hit-test the boosted size of
 // whichever one is currently selected, not just its box.
 function drawCameraApp(node) {
-  drawContainImage(cameraImage(CAMERA_PHOTO_FILENAMES[cameraPhotoIndex]), cameraMainRect(node), CAMERA_MAIN_PADDING);
+  const mainPhotoRect = drawContainImage(cameraImage(CAMERA_PHOTO_FILENAMES[cameraPhotoIndex]), cameraMainRect(node), CAMERA_MAIN_PADDING);
+
+  const frameImg = cameraImage(CAMERA_FRAME_FILENAME);
+  if (mainPhotoRect && frameImg.complete && frameImg.naturalWidth !== 0) {
+    const fw = mainPhotoRect.w * CAMERA_FRAME_SCALE;
+    const fh = mainPhotoRect.h * CAMERA_FRAME_SCALE;
+    const fx = mainPhotoRect.x + mainPhotoRect.w / 2 - fw / 2 + CAMERA_FRAME_OFFSET_X * mainPhotoRect.w;
+    const fy = mainPhotoRect.y + mainPhotoRect.h / 2 - fh / 2 + CAMERA_FRAME_OFFSET_Y * mainPhotoRect.h;
+    ctx.drawImage(frameImg, fx, fy, fw, fh);
+  }
 
   CAMERA_PHOTO_FILENAMES.forEach((filename, i) => {
     const selected = i === cameraPhotoIndex;
@@ -2304,6 +2400,7 @@ canvas.addEventListener("mousedown", () => {
   // down, the same as every other app.
   if (topNode.id === "fridgepopup") {
     if (inDrawerBand(mouseX, mouseY)) {
+      fridgeDrawerDiscovered = true; // stop bouncing now that the user found it
       const dRect = drawerRect();
       const drawerNote = [...fridgeNotes].reverse().find((n) => n.location === "drawer" && hitTestFridgeNote(n, mouseX, mouseY));
       if (drawerNote) { beginDragNote(drawerNote); return; }
@@ -2338,10 +2435,11 @@ canvas.addEventListener("mousedown", () => {
       return;
     }
 
-    // Clicking outside the counter while carrying something would normally
-    // close the popup — instead, require setting it down first so nothing
-    // gets stranded mid-task.
-    if (heldItem) return;
+    // Clicking outside the counter while carrying something cancels the hold
+    // (see cancelHeldItem) instead of leaving it stuck to the cursor with no
+    // way out — then falls through to the normal close-the-popup logic below,
+    // same as any other miss.
+    if (heldItem) cancelHeldItem();
   }
 
   // The bank's PRESS button is checked regardless of what's on top of it
