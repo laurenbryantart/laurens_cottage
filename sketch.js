@@ -33,6 +33,20 @@ const JOURNAL_ENTRIES = [
   "July 9.                 Worked from home. Have been making slide decks like lives depend on it.",
 ];
 
+// Add book entries here — one per cover in images/books (Book_1.png..Book_5.png,
+// paired up by array index). author/title/status get drawn straight onto that
+// entry's cover art (see drawBookCoverText, in the "BOOKS MECHANIC" section
+// further down); review is what shows on openbook.png once that cover is
+// clicked. status is free text (e.g. "reading", "read twice", "DNF") — there's
+// no fixed set of values.
+const BOOKS = [
+  { cover: "Book_1", author: "Sunburn Author", title: "Sunburn", status: "Reading", review: "dklsjfeknrfkjenfrklwejnflkwjnerjkwnfkljrnelkjnrfkwejnfkerjnfklwejnrfjkewnflkjewnrlkfjnewlkrjfnkwejnfkjernfkwejnfkwejnrfkjewnfkjenrkfjnekrjfnkwejnflkjwenrkfjn." },
+  { cover: "Book_2", author: "Author Name", title: "Book Title", status: "want to read", review: "Your thoughts here." },
+  { cover: "Book_3", author: "Author Name", title: "Book Title", status: "want to read", review: "Your thoughts here." },
+  { cover: "Book_4", author: "Author Name", title: "Book Title", status: "want to read", review: "Your thoughts here." },
+  { cover: "Book_5", author: "Author Name", title: "Book Title", status: "want to read", review: "Your thoughts here." },
+];
+
 const APP_SIZE = 1; // app icon files were shrunk to match this exact display size
 
 // Every image file has been pre-shrunk (by a build script) to the largest
@@ -77,7 +91,39 @@ let images = {
       // calendar click handling in the mousedown listener further down.
       { path: "main_room/calendar.png", coordinates_by_percentage: [88, 8.1], scale: 1, shake: true },
       { path: "main_room/flowers.png", coordinates_by_percentage: [91.9, 23], scale: 1 },
-      { path: "main_room/books.png", coordinates_by_percentage: [32.2, 45], scale: 1 },
+      // Clicking books opens bookspopup — see the "BOOKS MECHANIC" section
+      // further down for how the scattered covers/openbook popup work.
+      {
+        id: "books", path: "main_room/books.png", coordinates_by_percentage: [32.2, 45], scale: 1, shake: true,
+        children: [
+          // blank.png is a 4x4 fully transparent placeholder — bookspopup has
+          // no background art of its own (the covers are scattered directly
+          // over the dimmed room, see drawBooksScene), but every do_dark_background
+          // layer still needs a real node.img for the tree/click plumbing to
+          // work, so this is a harmless stand-in that's never actually visible.
+          {
+            id: "bookspopup", path: "books/blank.png",
+            coordinates_by_percentage: [50, 50], scale: 1,
+            do_dark_background: true,
+          },
+          // A sibling of bookspopup, not its child — a node's children are
+          // drawn every frame regardless of whether that node itself is open
+          // (that's how e.g. app_bank/app_wizard sit visible side by side on
+          // the desktop), so nesting this under bookspopup would make it
+          // auto-render the instant any book scattered. It only actually
+          // shows once handleBooksSceneClick below pushes it onto openPath
+          // directly (found via the openBookNode lookup further down, same
+          // "findNodeById for one specific popup" trick fridgeNode/bedNode use).
+          {
+            id: "openbookpopup", path: "books/openbook.png",
+            // Same on-canvas footprint as journalpopup (both native
+            // ~1056x900ish, both scaled to 0.9) for visual consistency
+            // between the two popups.
+            coordinates_by_percentage: [50, 50], scale: 0.9,
+            do_dark_background: true,
+          },
+        ],
+      },
 
       {
         path: "main_room/laptop.png", coordinates_by_percentage: [43, 14], scale: 1, shake: true,
@@ -282,6 +328,8 @@ const drawingNode = findNodeById(root, "drawing");
 const alertNode = findNodeById(root, "alert_compromised_wizard");
 const fridgeNode = findNodeById(root, "fridgepopup");
 const bedNode = findNodeById(root, "bedpopup");
+const bookspopupNode = findNodeById(root, "bookspopup");
+const openBookNode = findNodeById(root, "openbookpopup");
 
 // -------------------- FONTS --------------------
 
@@ -1624,6 +1672,240 @@ function handleJournalClick() {
   playSound(JOURNAL_PAPER_WOBBLE_SOUNDS[Math.floor(Math.random() * JOURNAL_PAPER_WOBBLE_SOUNDS.length)]);
 }
 
+// -------------------- BOOKS MECHANIC --------------------
+// Clicking books opens bookspopup (a single do_dark_background layer, the
+// same trick coffeecounter/bank_home/wizardgame/journalpopup use), scattered
+// with every BOOKS entry's cover at a random spot, once (see initBooks — same
+// "populate on first open, keep state after that" rule fridgeMagnets/
+// bedObjects follow). There's no dedicated background art for this scene, so
+// bookspopup's own node.img is just the blank.png placeholder (see the tree
+// above) and drawBooksScene draws the covers straight onto the dimmed room.
+// Clicking a cover opens openbookpopup with that book's review text (see
+// drawOpenBook) — closing it (the generic click-outside-closes-popup logic
+// further down handles that; no special-casing needed here, unlike journal's
+// click-to-advance) just goes back to the scattered covers.
+
+const BOOKS_FOLDER = IMAGES_FOLDER + "books/";
+const bookImageCache = {};
+function bookImage(filename) {
+  if (!bookImageCache[filename]) {
+    const img = new Image();
+    img.onerror = () => pushError(`Missing image: ${BOOKS_FOLDER}${filename}.png`);
+    img.src = `${BOOKS_FOLDER}${filename}.png`;
+    bookImageCache[filename] = img;
+  }
+  return bookImageCache[filename];
+}
+BOOKS.forEach((book) => bookImage(book.cover));
+
+// Book_1..5.png were pre-shrunk (by the same build script every other prop
+// went through) to their actual on-canvas display size, so scale 1, same as
+// most other pre-shrunk props.
+const BOOK_COVER_SCALE = 1;
+
+// Fraction of each cover's own w/h that author/title/status get drawn
+// into — stops short of the right edge, where every cover's art shows a
+// sliver of pages/spine rather than front-cover surface.
+const BOOK_COVER_TEXT_RECT = { xMin: 0.1, xMax: 0.78, yMin: 0.08, yMax: 0.92 };
+
+// How close to the canvas edge counts as "outside the scene" — clicking there
+// closes bookspopup, same as clicking outside any other popup's own
+// background art closes it. There's no background art here (covers are
+// scattered directly on the dimmed room), so this invisible margin stands in
+// for that art's edge.
+const BOOKS_SCENE_MARGIN_FRACTION = 0.03;
+function booksSceneRect() {
+  const mx = canvas.width * BOOKS_SCENE_MARGIN_FRACTION;
+  const my = canvas.height * BOOKS_SCENE_MARGIN_FRACTION;
+  return { x: mx, y: my, w: canvas.width - mx * 2, h: canvas.height - my * 2 };
+}
+
+let bookItems = null; // populated on first open by initBooks — persists after that, like fridgeMagnets/bedObjects
+let currentOpenBook = null; // whichever BOOKS entry openbookpopup is currently showing
+
+// Scatters every BOOKS entry's cover inside the scene, once — but unlike
+// initFridgeMagnets' random-retry approach, covers are assigned to a shuffled
+// grid of cells (one per book) and then jittered within their own cell. That
+// guarantees no two covers ever overlap (a title's just unreadable if the
+// next cover happens to land on top of it), while the per-cell jitter still
+// reads as scattered rather than a rigid grid. This never runs again, so
+// there's no need to handle re-scattering after the first open.
+function initBooks() {
+  const rect = booksSceneRect();
+  const n = BOOKS.length;
+  const cols = Math.ceil(Math.sqrt(n));
+  const rows = Math.ceil(n / cols);
+  const cellW = rect.w / cols;
+  const cellH = rect.h / rows;
+
+  const cells = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) cells.push({ r, c });
+  }
+  for (let i = cells.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [cells[i], cells[j]] = [cells[j], cells[i]];
+  }
+
+  bookItems = BOOKS.map((book, i) => {
+    const img = bookImage(book.cover);
+    const w = img.width * BOOK_COVER_SCALE;
+    const h = img.height * BOOK_COVER_SCALE;
+    const cell = cells[i];
+    const cellCenterX = rect.x + cell.c * cellW + cellW / 2;
+    const cellCenterY = rect.y + cell.r * cellH + cellH / 2;
+
+    // How far off-center the cover can jitter and still stay clear of the
+    // cell's own edges (and thus the neighboring cell's cover) — clamped to 0
+    // so a cover that's bigger than its cell just sits centered instead of
+    // going negative.
+    const jitterX = Math.max(0, (cellW - w) / 2 - 10);
+    const jitterY = Math.max(0, (cellH - h) / 2 - 10);
+    const x = cellCenterX + (Math.random() * 2 - 1) * jitterX;
+    const y = cellCenterY + (Math.random() * 2 - 1) * jitterY;
+
+    return { ...book, scale: BOOK_COVER_SCALE, coordinates_by_percentage: pixelsToPercentage(x, y) };
+  });
+}
+
+function bookItemRect(book) {
+  const img = bookImage(book.cover);
+  const w = img.width * book.scale;
+  const h = img.height * book.scale;
+  const { x, y } = topLeftFor(book.coordinates_by_percentage, w, h);
+  return { x, y, w, h };
+}
+
+function hitTestBookItem(book, x, y) {
+  const r = bookItemRect(book);
+  return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+}
+
+// Draws author (small, top) / title (biggest) / status (small, bottom),
+// centered within BOOK_COVER_TEXT_RECT, in the same handwriting font every
+// other bit of text in this file uses.
+function drawBookCoverText(book, rect) {
+  const tx = rect.x + BOOK_COVER_TEXT_RECT.xMin * rect.w;
+  const tw = (BOOK_COVER_TEXT_RECT.xMax - BOOK_COVER_TEXT_RECT.xMin) * rect.w;
+  const tyTop = rect.y + BOOK_COVER_TEXT_RECT.yMin * rect.h;
+  const tyBottom = rect.y + BOOK_COVER_TEXT_RECT.yMax * rect.h;
+  const cx = tx + tw / 2;
+
+  ctx.save();
+  ctx.fillStyle = "black";
+  ctx.textAlign = "center";
+
+  ctx.font = "16px Handwriting, cursive";
+  ctx.textBaseline = "top";
+  wrapText(book.author, tw).forEach((line, i) => ctx.fillText(line, cx, tyTop + i * 18));
+
+  // wrapText measures with ctx.font, so it must be set (above) before this call.
+  ctx.font = "bold 26px Handwriting, cursive";
+  ctx.textBaseline = "middle";
+  const titleLines = wrapText(book.title, tw);
+  const titleLineHeight = 28;
+  const titleStartY = tyTop + (tyBottom - tyTop) / 2 - ((titleLines.length - 1) * titleLineHeight) / 2;
+  titleLines.forEach((line, i) => ctx.fillText(line, cx, titleStartY + i * titleLineHeight));
+
+  ctx.font = "italic 15px Handwriting, cursive";
+  ctx.textBaseline = "bottom";
+  ctx.fillText(book.status, cx, tyBottom);
+
+  ctx.restore();
+}
+
+function drawBooksScene() {
+  if (!bookItems) return;
+  bookItems.forEach((book) => {
+    const img = bookImage(book.cover);
+    if (!img.complete || img.naturalWidth === 0) return;
+    const rect = bookItemRect(book);
+    ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h);
+    safeTry(`book cover text: ${book.cover}`, () => drawBookCoverText(book, rect));
+  });
+}
+
+// Mirror image of each other around the spine (0.5), both bumped down from
+// the top edge to clear the page's own curled-corner art.
+const OPENBOOK_LEFT_PAGE_RECT_FRACTION = { xMin: 0.07, xMax: 0.46, yMin: 0.18, yMax: 0.85 };
+const OPENBOOK_RIGHT_PAGE_RECT_FRACTION = { xMin: 0.54, xMax: 0.93, yMin: 0.18, yMax: 0.85 };
+// Matches each page's own perspective (the art tilts them away from the
+// spine in the middle) — same idea as JOURNAL_TEXT_TILT_DEGREES, but mirrored
+// left/right instead of a single fixed direction: the left page's text tilts
+// clockwise (rightward, toward the spine), the right page's tilts
+// counter-clockwise (leftward, also toward the spine).
+const OPENBOOK_TEXT_TILT_DEGREES = 4;
+
+function openBookPageRect(node, fraction) {
+  const w = node.img.width * node.scale;
+  const h = node.img.height * node.scale;
+  const { x, y } = topLeftFor(node.coordinates_by_percentage, w, h);
+  return {
+    x: x + fraction.xMin * w,
+    y: y + fraction.yMin * h,
+    w: (fraction.xMax - fraction.xMin) * w,
+    h: (fraction.yMax - fraction.yMin) * h,
+  };
+}
+
+// Draws a small "Title — Author" header (so it's clear which book this is,
+// since every entry shares the same openbook.png art) at the top of the left
+// page, followed immediately by the review text — one continuous run of text
+// that starts on the left page and, once it runs past the left page's own
+// height, spills onto the right page (same text throughout, just wrapped
+// once against a single page's width and split across the two rather than
+// shown twice).
+function drawOpenBook(node) {
+  if (!currentOpenBook) return;
+  const leftRect = openBookPageRect(node, OPENBOOK_LEFT_PAGE_RECT_FRACTION);
+  const rightRect = openBookPageRect(node, OPENBOOK_RIGHT_PAGE_RECT_FRACTION);
+
+  const headerFont = "italic 16px Handwriting, cursive";
+  const headerLineHeight = 20;
+  const reviewFont = "18px Handwriting, cursive";
+  const reviewLineHeight = 24;
+
+  ctx.font = headerFont; // wrapText measures with ctx.font, so it must be set before these calls
+  const headerLines = wrapText(`${currentOpenBook.title} — ${currentOpenBook.author}`, leftRect.w);
+  ctx.font = reviewFont;
+  const reviewLines = wrapText(currentOpenBook.review, leftRect.w); // both pages share the same width, so one wrap works for both
+
+  const reviewTopOnLeftPage = headerLines.length * headerLineHeight + 14; // gap below the header
+  const leftPageCapacity = Math.max(0, Math.floor((leftRect.h - reviewTopOnLeftPage) / reviewLineHeight));
+  const leftReviewLines = reviewLines.slice(0, leftPageCapacity);
+  // Overflow past both pages just gets clipped for now, same as the journal's
+  // no-truncation/scrolling policy for entries that run long.
+  const rightReviewLines = reviewLines.slice(leftPageCapacity);
+
+  // Left page: header, then review text below it, both tilted clockwise
+  // around the page's own top-left corner (same translate-then-rotate trick
+  // drawJournal uses).
+  ctx.save();
+  ctx.fillStyle = "black";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.translate(leftRect.x, leftRect.y);
+  ctx.rotate((OPENBOOK_TEXT_TILT_DEGREES * Math.PI) / 180);
+  ctx.font = headerFont;
+  headerLines.forEach((line, i) => ctx.fillText(line, 0, i * headerLineHeight));
+  ctx.font = reviewFont;
+  leftReviewLines.forEach((line, i) => ctx.fillText(line, 0, reviewTopOnLeftPage + i * reviewLineHeight));
+  ctx.restore();
+
+  // Right page: whatever review text spilled past the left page, tilted
+  // counter-clockwise around its own top-left corner, starting fresh at the
+  // top (no header over here).
+  ctx.save();
+  ctx.fillStyle = "black";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.translate(rightRect.x, rightRect.y);
+  ctx.rotate((-OPENBOOK_TEXT_TILT_DEGREES * Math.PI) / 180);
+  ctx.font = reviewFont;
+  rightReviewLines.forEach((line, i) => ctx.fillText(line, 0, i * reviewLineHeight));
+  ctx.restore();
+}
+
 // -------------------- FRIDGE MECHANIC --------------------
 // Clicking notes opens fridgepopup (a single do_dark_background layer, the
 // same trick coffeecounter/bank_home/wizardgame/journalpopup use). Inside it,
@@ -2536,6 +2818,8 @@ function draw() {
       if (node.id === "bank_home") safeTry("bank balance", () => drawBankBalance(node));
       if (node.id === "wizardgame") safeTry("wizard game", () => drawWizardGame(node));
       if (node.id === "journalpopup") safeTry("journal", () => drawJournal(node));
+      if (node.id === "bookspopup") safeTry("books scene", drawBooksScene);
+      if (node.id === "openbookpopup") safeTry("open book", () => drawOpenBook(node));
       if (node.id === "fridgepopup") safeTry("fridge", drawFridgeScene);
       if (node.id === "bedpopup") safeTry("bed", drawBedScene);
       if (node.id === "cameraapp") safeTry("camera app", () => drawCameraApp(node));
@@ -2760,6 +3044,26 @@ canvas.addEventListener("mousedown", () => {
     }
   }
 
+  // Clicking a scattered cover opens openbookpopup with that book's review
+  // (see drawOpenBook); a miss checks the invisible scene-edge margin
+  // (booksSceneRect) the same way every other popup's own background art
+  // decides "outside" — closing bookspopup if so, otherwise just staying put
+  // (a miss inside the scene has nothing else to do, unlike the fridge/bed
+  // scenes below).
+  if (topNode.id === "bookspopup") {
+    const hit = bookItems && [...bookItems].reverse().find((b) => hitTestBookItem(b, mouseX, mouseY));
+    if (hit) {
+      currentOpenBook = hit;
+      openPath.push(openBookNode);
+      return;
+    }
+
+    const rect = booksSceneRect();
+    const insideScene = mouseX >= rect.x && mouseX <= rect.x + rect.w && mouseY >= rect.y && mouseY <= rect.y + rect.h;
+    if (!insideScene) closePopup();
+    return;
+  }
+
   // Clicking inside the fridge scene checks its layers topmost-first: a note
   // (in the drawer, or already stuck to the fridge) or the drawer itself if
   // the click falls within the drawer's own currently visible rect, then
@@ -2867,6 +3171,9 @@ canvas.addEventListener("mousedown", () => {
     } else if (node.id === "journal") {
       resetJournal(); // start back on the most recent entry every time it's opened
       openPath.push(...node.children);
+    } else if (node.id === "books") {
+      if (!bookItems) initBooks(); // first open only — state persists after that (resets on page reload)
+      openPath.push(bookspopupNode); // not openbookpopup too — that only opens once a scattered cover is clicked
     } else if (node.id === "app_camera") {
       resetCameraApp(); // start back on the first photo every time it's opened
       openPath.push(...node.children);
