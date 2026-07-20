@@ -11,7 +11,7 @@ const affirmations = [
   "One day I will make freinds",
   "I need to chill out",
   "I am flying. I am ascending.",
-  "Fuuuuuuuuuuuuuuuuuck",
+  "Fuuuuuuuuuuuuuuuck",
   "I am really good at drawing",
   "Drawing is the only thing I am good at",
   "I am one",
@@ -29,8 +29,9 @@ const JOURNAL_ENTRIES = [
   "July 4.                 We could only see the bottom half of the fireworks. They lit up the fog in neon colors, which was a sight to see in itself. They were shot from the Golden Gate Bridge. I shared a Long Drink with Alex.",
   "July 5.                 Spent a lot of today languishing indoors. I visited the park breifly. I climbed every hill in this city and sat at the park for 20 minutes, sliding off the grassy hill trying to draw.",
   "July 6.                 Work today like every day. Monotony eating itself and my standing desk is broken. Met Xyan at the pottery studio and made and destroyed a face.",
-  "July 8.                 Figure drawing tonight. Lovlier than I could have hoped for, though the first hour felt so miserable I almost slipped out on break. I met new friends and had the lovliest dinner.",
+  "July 8.                 Figure drawing tonight. Lovlier than I could have hoped for, though the first hour felt so miserable I almost slipped out on break. I met new friends and had the loveliest dinner.",
   "July 9.                 Worked from home. Have been making slide decks like lives depend on it.",
+  "July 20.                Dad and Jody came for the weekend. I've taken today off the hang with them. I have been so anxious about work this whole time, though. I wish I could just trust myself. It's been a nice time, though. It's great to show them my life in the city.",
 ];
 
 // Add book entries here — one per cover in images/books (Book_1.png..Book_5.png,
@@ -40,8 +41,8 @@ const JOURNAL_ENTRIES = [
 // clicked. status is free text (e.g. "reading", "read twice", "DNF") — there's
 // no fixed set of values.
 const BOOKS = [
-  { cover: "Book_1", author: "Sunburn Author", title: "Sunburn", status: "Reading", review: "dklsjfeknrfkjenfrklwejnflkwjnerjkwnfkljrnelkjnrfkwejnfkerjnfklwejnrfjkewnflkjewnrlkfjnewlkrjfnkwejnfkjernfkwejnfkwejnrfkjewnfkjenrkfjnekrjfnkwejnflkjwenrkfjn." },
-  { cover: "Book_2", author: "Author Name", title: "Book Title", status: "want to read", review: "Your thoughts here." },
+  { cover: "Book_1", author: "Chloe Michelle Howarth", title: "Sunburn", status: "Reading", review: "I've been enjoying this one, though it is such a different world from the one that I am in. The book keeps us firmly in Lucy's perspective, it doesn't even let us out for much dalogue. We are with her yearning, her dreaming, her high school woes. We are growing with her and feel her Crossmore ennui. I feel like I see some of myself in Lucy. It's so lonely to be a high school girl. I wonder if I should ever recover. Anyways. I am only about halfway through, and I suspect that Lucy and Susannah will be found out, will be tortured by the girls. Or maybe it'll stay a slow and rural burn. Maybe the author will give these two a happy eneding and no one has to get kicked out or die." },
+  { cover: "Book_2", author: "Elaine Ho", title: "Cry, Voidbringer", status: "Finished", review: "Hmmm. I definitely got into this book at the end, but I didn't find it to be a particularly compelling fantasy nor did I really love the characters. The main characters suffer a lot and it is not particularly satisfying or heartbreaking. The ending was so blah. It didn't feel narritively sensical that one of the main characters just died at the end. I guess it allowed Hammer to go beast mode on the world, but we didn't even really get to see that and I didn't particularly care. I don't think I would read any sequels if they came out. But idk. It was fun. The author did a pretty good job at fleshing the world out, even if it wasn't one that I thought was that cool. Perhaps I like more escapist fantasy than this." },
   { cover: "Book_3", author: "Author Name", title: "Book Title", status: "want to read", review: "Your thoughts here." },
   { cover: "Book_4", author: "Author Name", title: "Book Title", status: "want to read", review: "Your thoughts here." },
   { cover: "Book_5", author: "Author Name", title: "Book Title", status: "want to read", review: "Your thoughts here." },
@@ -1827,8 +1828,8 @@ function drawBooksScene() {
 
 // Mirror image of each other around the spine (0.5), both bumped down from
 // the top edge to clear the page's own curled-corner art.
-const OPENBOOK_LEFT_PAGE_RECT_FRACTION = { xMin: 0.07, xMax: 0.46, yMin: 0.18, yMax: 0.85 };
-const OPENBOOK_RIGHT_PAGE_RECT_FRACTION = { xMin: 0.54, xMax: 0.93, yMin: 0.18, yMax: 0.85 };
+const OPENBOOK_LEFT_PAGE_RECT_FRACTION = { xMin: 0.09, xMax: 0.48, yMin: 0.1, yMax: 0.85 };
+const OPENBOOK_RIGHT_PAGE_RECT_FRACTION = { xMin: 0.56, xMax: 0.95, yMin: 0.1, yMax: 0.85 };
 // Matches each page's own perspective (the art tilts them away from the
 // spine in the middle) — same idea as JOURNAL_TEXT_TILT_DEGREES, but mirrored
 // left/right instead of a single fixed direction: the left page's text tilts
@@ -1860,10 +1861,10 @@ function drawOpenBook(node) {
   const leftRect = openBookPageRect(node, OPENBOOK_LEFT_PAGE_RECT_FRACTION);
   const rightRect = openBookPageRect(node, OPENBOOK_RIGHT_PAGE_RECT_FRACTION);
 
-  const headerFont = "italic 16px Handwriting, cursive";
-  const headerLineHeight = 20;
-  const reviewFont = "18px Handwriting, cursive";
-  const reviewLineHeight = 24;
+  const headerFont = "italic 19px Handwriting, cursive";
+  const headerLineHeight = 23;
+  const reviewFont = "21px Handwriting, cursive";
+  const reviewLineHeight = 27;
 
   ctx.font = headerFont; // wrapText measures with ctx.font, so it must be set before these calls
   const headerLines = wrapText(`${currentOpenBook.title} — ${currentOpenBook.author}`, leftRect.w);
