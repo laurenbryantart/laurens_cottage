@@ -29,9 +29,10 @@ const JOURNAL_ENTRIES = [
   "July 4.                 We could only see the bottom half of the fireworks. They lit up the fog in neon colors, which was a sight to see in itself. They were shot from the Golden Gate Bridge. I shared a Long Drink with Alex.",
   "July 5.                 Spent a lot of today languishing indoors. I visited the park breifly. I climbed every hill in this city and sat at the park for 20 minutes, sliding off the grassy hill trying to draw.",
   "July 6.                 Work today like every day. Monotony eating itself and my standing desk is broken. Met Xyan at the pottery studio and made and destroyed a face.",
-  "July 8.                 Figure drawing tonight. Lovlier than I could have hoped for, though the first hour felt so miserable I almost slipped out on break. I met new friends and had the loveliest dinner.",
+  "July 8.                 Figure drawing tonight. Lovelier than I could have hoped for, though the first hour felt so miserable I almost slipped out on break. I met new friends and had the loveliest dinner.",
   "July 9.                 Worked from home. Have been making slide decks like lives depend on it.",
   "July 20.                Dad and Jody came for the weekend. I've taken today off the hang with them. I have been so anxious about work this whole time, though. I wish I could just trust myself. It's been a nice time, though. It's great to show them my life in the city.",
+  "September 12.           A nice Saturday by myself today. Started with coffee at Le Mil's (upset my stomach but did not let that deter me) then I went home and did a lot of drawing and a lot of listening to Harry Potter. I continued that at the park before returning home to work on my website. Now I'm having a cup of tea. "
 ];
 
 // Add book entries here — one per cover in images/books (Book_1.png..Book_5.png,
