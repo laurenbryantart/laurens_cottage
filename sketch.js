@@ -62,14 +62,14 @@ const APP_SIZE = 1; // app icon files were shrunk to match this exact display si
 // smaller when carried) — they are not typos.
 let images = {
   room_background: {
-    path: "main_room/room_background.png", coordinates_by_percentage: [0, 0], scale: 1,
+    path: "main_room/room_background.webp", coordinates_by_percentage: [0, 0], scale: 1,
     children: [
       // Opens bedpopup — see the "BED MECHANIC" section further down for the
       // covers/quilt pull-down and scattered draggable objects.
       {
         // The bed is a big element, so the default shake angle reads as much
         // more motion than on smaller props — dialed down to a subtler wobble.
-        id: "bed", path: "main_room/bed.png", coordinates_by_percentage: [11.3, 28], scale: 1, shake: true, shakeMaxDegrees: 1,
+        id: "bed", path: "main_room/bed.webp", coordinates_by_percentage: [11.3, 28], scale: 1, shake: true, shakeMaxDegrees: 1,
         children: [
           {
             // newbedbase.png replaced the old bedbase.png (900x1201, scale
@@ -82,21 +82,21 @@ let images = {
             // as bank_home.png's 0.6124 above) — no headroom-for-blur concern
             // here since the new file is already far higher-res than it's
             // ever drawn at.
-            id: "bedpopup", path: "bed/newbedbase.png",
+            id: "bedpopup", path: "bed/newbedbase.webp",
             coordinates_by_percentage: [50, 50], scale: 0.3296,
             do_dark_background: true,
           },
         ],
       },
-      { path: "main_room/pattern.png", coordinates_by_percentage: [50.1, 8.5], scale: 1 },
+      { path: "main_room/pattern.webp", coordinates_by_percentage: [50.1, 8.5], scale: 1 },
       // Its only job is linking out to the "stuff to do" page — see the
       // calendar click handling in the mousedown listener further down.
-      { path: "main_room/calendar.png", coordinates_by_percentage: [88, 8.1], scale: 1, shake: true },
-      { path: "main_room/flowers.png", coordinates_by_percentage: [91.9, 23], scale: 1 },
+      { path: "main_room/calendar.webp", coordinates_by_percentage: [88, 8.1], scale: 1, shake: true },
+      { path: "main_room/flowers.webp", coordinates_by_percentage: [91.9, 23], scale: 1 },
       // Clicking books opens bookspopup — see the "BOOKS MECHANIC" section
       // further down for how the scattered covers/openbook popup work.
       {
-        id: "books", path: "main_room/books.png", coordinates_by_percentage: [32.2, 45], scale: 1, shake: true,
+        id: "books", path: "main_room/books.webp", coordinates_by_percentage: [32.2, 45], scale: 1, shake: true,
         children: [
           // blank.png is a 4x4 fully transparent placeholder — bookspopup has
           // no background art of its own (the covers are scattered directly
@@ -104,7 +104,7 @@ let images = {
           // layer still needs a real node.img for the tree/click plumbing to
           // work, so this is a harmless stand-in that's never actually visible.
           {
-            id: "bookspopup", path: "books/blank.png",
+            id: "bookspopup", path: "books/blank.webp",
             coordinates_by_percentage: [50, 50], scale: 1,
             do_dark_background: true,
           },
@@ -117,7 +117,7 @@ let images = {
           // directly (found via the openBookNode lookup further down, same
           // "findNodeById for one specific popup" trick fridgeNode/bedNode use).
           {
-            id: "openbookpopup", path: "books/openbook.png",
+            id: "openbookpopup", path: "books/openbook.webp",
             // Same on-canvas footprint as journalpopup (both native
             // ~1056x900ish, both scaled to 0.9) for visual consistency
             // between the two popups.
@@ -128,14 +128,14 @@ let images = {
       },
 
       {
-        path: "main_room/laptop.png", coordinates_by_percentage: [43, 14], scale: 1, shake: true,
+        path: "main_room/laptop.webp", coordinates_by_percentage: [43, 14], scale: 1, shake: true,
         children: [
           {
-            path: "computer/desktop.png", coordinates_by_percentage: [50, 50], scale: 1,
+            path: "computer/desktop.webp", coordinates_by_percentage: [50, 50], scale: 1,
             do_dark_background: true,
             children: [
               {
-                path: "computer/app_bank.png", coordinates_by_percentage: [48.4, 30.0], scale: APP_SIZE, shake: true,
+                path: "computer/app_bank.webp", coordinates_by_percentage: [48.4, 30.0], scale: APP_SIZE, shake: true,
                 children: [
                   {
                     // The balance readout and PRESS button are baked into
@@ -148,7 +148,7 @@ let images = {
                     // footprint matching the old art as closely as a single
                     // uniform scale can (it's the average of the width-
                     // matching and height-matching ratios, ~1.5% off each).
-                    id: "bank_home", path: "computer/bank_home.png",
+                    id: "bank_home", path: "computer/bank_home.webp",
                     coordinates_by_percentage: [50, 50], scale: 0.6124,
                     do_dark_background: true,
                     // Keeps these two templates from also rendering
@@ -157,15 +157,15 @@ let images = {
                     // as clone stencils for spawned dollar bills.
                     hide: ["dollar_template1", "dollar_template2"],
                     children: [
-                      { id: "dollar_template1", path: "computer/dollar1.png", coordinates_by_percentage: [50, 50], scale: 0.242 },
-                      { id: "dollar_template2", path: "computer/dollar2.png", coordinates_by_percentage: [50, 50], scale: 0.275 },
+                      { id: "dollar_template1", path: "computer/dollar1.webp", coordinates_by_percentage: [50, 50], scale: 0.242 },
+                      { id: "dollar_template2", path: "computer/dollar2.webp", coordinates_by_percentage: [50, 50], scale: 0.275 },
                     ],
                   },
                 ],
               },
-              { path: "computer/app_borders.png", coordinates_by_percentage: [65.7, 55.7], scale: APP_SIZE },
+              { path: "computer/app_borders.webp", coordinates_by_percentage: [65.7, 55.7], scale: APP_SIZE },
               {
-                path: "computer/app_camera.png", coordinates_by_percentage: [66.8, 29.7], scale: APP_SIZE, shake: true,
+                path: "computer/app_camera.webp", coordinates_by_percentage: [66.8, 29.7], scale: APP_SIZE, shake: true,
                 children: [
                   {
                     // "camera app background.png" was cropped/shrunk to match its
@@ -176,14 +176,14 @@ let images = {
                     // carousel drawn on top of it (its layout rects are
                     // fractions of this node's own w/h, so they scale down with
                     // it automatically).
-                    id: "cameraapp", path: "computer/camera app/camera app background.png",
+                    id: "cameraapp", path: "computer/camera app/camera app background.webp",
                     coordinates_by_percentage: [50, 50], scale: 0.76,
                     do_dark_background: true,
                   },
                 ],
               },
               {
-                path: "computer/app_wizard.png", coordinates_by_percentage: [53.2, 48.5], scale: APP_SIZE, shake: true,
+                path: "computer/app_wizard.webp", coordinates_by_percentage: [53.2, 48.5], scale: APP_SIZE, shake: true,
                 children: [
                   {
                     // See the "WIZARD MINIGAME" section further down for how
@@ -193,23 +193,23 @@ let images = {
                     // pre-shrink pass the other images have (native
                     // 1006x1238), so 0.6 is a real, deliberately picked
                     // display scale, not a stand-in for 1.
-                    id: "wizardgame", path: "wizard/wizardgamebackground.png",
+                    id: "wizardgame", path: "wizard/wizardgamebackground.webp",
                     coordinates_by_percentage: [50, 50], scale: 0.6,
                     do_dark_background: true,
                   },
                 ],
               },
               // app_file.png is reused for multiple items, so its id must be given explicitly to avoid duplicates.
-              { id: "app_file1", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 30.2], scale: 1 },
-              { id: "app_file2", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 45.2], scale: 1 },
-              { id: "app_file3", path: "computer/app_file.png", coordinates_by_percentage: [19.6, 60.2], scale: 1 },
+              { id: "app_file1", path: "computer/app_file.webp", coordinates_by_percentage: [19.6, 30.2], scale: 1 },
+              { id: "app_file2", path: "computer/app_file.webp", coordinates_by_percentage: [19.6, 45.2], scale: 1 },
+              { id: "app_file3", path: "computer/app_file.webp", coordinates_by_percentage: [19.6, 60.2], scale: 1 },
 
-              { path: "computer/alert_compromised_wizard.png", coordinates_by_percentage: [33.9, 68.0], scale: APP_SIZE },
+              { path: "computer/alert_compromised_wizard.webp", coordinates_by_percentage: [33.9, 68.0], scale: APP_SIZE },
 
               {
-                path: "computer/app_affirmations.png", coordinates_by_percentage: [35.5, 30.4], scale: 1, shake: true,
+                path: "computer/app_affirmations.webp", coordinates_by_percentage: [35.5, 30.4], scale: 1, shake: true,
                 children: [
-                  { path: "computer/affirmations_popup.png", coordinates_by_percentage: [10, 10], scale: 1 },
+                  { path: "computer/affirmations_popup.webp", coordinates_by_percentage: [10, 10], scale: 1 },
                 ]
               },
             ]
@@ -225,24 +225,24 @@ let images = {
       // opens journalpopup — see the "JOURNAL MECHANIC" section further
       // down for how the entries/paper cycling work.
       {
-        id: "journal", path: "journal/journal.png", coordinates_by_percentage: [43, 28], scale: 0.38, shake: true,
+        id: "journal", path: "journal/journal.webp", coordinates_by_percentage: [43, 28], scale: 0.38, shake: true,
         children: [
           {
             // "journnal popup background.png" (typo is in the actual
             // filename) hasn't been pre-shrunk either (native 1056x921),
             // so 0.9 is a deliberately picked display scale.
-            id: "journalpopup", path: "journal/journnal popup background.png",
+            id: "journalpopup", path: "journal/journnal popup background.webp",
             coordinates_by_percentage: [50, 50], scale: 0.9,
             do_dark_background: true,
           },
         ],
       },
 
-      { path: "main_room/teapot.png", coordinates_by_percentage: [91.5, 40], scale: 1 },
+      { path: "main_room/teapot.webp", coordinates_by_percentage: [91.5, 40], scale: 1 },
       // Opens fridgepopup — see the "FRIDGE MECHANIC" section further down
       // for the magnets/drawer/notes that live inside it.
       {
-        id: "notes", path: "main_room/notes.png", coordinates_by_percentage: [93.2, 35], scale: 1, shake: true,
+        id: "notes", path: "main_room/notes.webp", coordinates_by_percentage: [93.2, 35], scale: 1, shake: true,
         children: [
           {
             // fridgebackground.png is 924x743 native. scale 1.2919 (=960/743)
@@ -250,28 +250,28 @@ let images = {
             // edges are both flush — the resulting ~1194px width is then
             // right-aligned (center = canvas.width - width/2) rather than
             // centered, per the right/top/bottom flush placement asked for.
-            id: "fridgepopup", path: "fridge/fridgebackground.png",
+            id: "fridgepopup", path: "fridge/fridgebackground.webp",
             coordinates_by_percentage: [58.9, 50], scale: 1.2919,
             do_dark_background: true,
           },
         ],
       },
-      { path: "main_room/paper.png", coordinates_by_percentage: [34.0, 70.3], scale: 1 },
+      { path: "main_room/paper.webp", coordinates_by_percentage: [34.0, 70.3], scale: 1 },
       // Opens laurenbryantart.com — see the "drawing" click handling in the
       // mousedown listener further down, same special-case pattern as the
       // calendar. Bounces (rather than shakes) to invite a click.
-      { path: "main_room/drawing.png", coordinates_by_percentage: [52.7, 26], scale: 1, bounce: true },
-      { path: "main_room/laundry.png", coordinates_by_percentage: [26, 29], scale: 1 },
+      { path: "main_room/drawing.webp", coordinates_by_percentage: [52.7, 26], scale: 1, bounce: true },
+      { path: "main_room/laundry.webp", coordinates_by_percentage: [26, 29], scale: 1 },
 
       // Clicking the coffeemaker opens the coffee counter minigame — see
       // the "COFFEE MINIGAME" section further down for how it works.
-      { path: "main_room/coffeemaker.png", coordinates_by_percentage: [83.5, 18.7], scale: 1, shake: true, children: [
+      { path: "main_room/coffeemaker.webp", coordinates_by_percentage: [83.5, 18.7], scale: 1, shake: true, children: [
         {
           // The coffee minigame code below keys off this id — the file is
           // "newnewcounter.png" so it needs to be set explicitly rather
           // than relying on the filename-derived default.
           id: "coffeecounter",
-          path: "coffeemaker/newnewcounter.png",
+          path: "coffeemaker/newnewcounter.webp",
           // Positioned so its right and bottom edges sit flush against the
           // canvas's right and bottom edges (center = canvas edge minus half
           // the scaled image size), rather than centered like other popups.
@@ -858,8 +858,8 @@ const coffeeImageCache = {};
 function coffeeImage(filename) {
   if (!coffeeImageCache[filename]) {
     const img = new Image();
-    img.onerror = () => pushError(`Missing image: ${COFFEE_FOLDER}${filename}.png`);
-    setImageSrc(img, `${COFFEE_FOLDER}${filename}.png`);
+    img.onerror = () => pushError(`Missing image: ${COFFEE_FOLDER}${filename}.webp`);
+    setImageSrc(img, `${COFFEE_FOLDER}${filename}.webp`);
     coffeeImageCache[filename] = img;
   }
   return coffeeImageCache[filename];
@@ -1328,8 +1328,8 @@ const wizardImageCache = {};
 function wizardImage(filename) {
   if (!wizardImageCache[filename]) {
     const img = new Image();
-    img.onerror = () => pushError(`Missing image: ${WIZARD_FOLDER}${filename}.png`);
-    setImageSrc(img, `${WIZARD_FOLDER}${filename}.png`);
+    img.onerror = () => pushError(`Missing image: ${WIZARD_FOLDER}${filename}.webp`);
+    setImageSrc(img, `${WIZARD_FOLDER}${filename}.webp`);
     wizardImageCache[filename] = img;
   }
   return wizardImageCache[filename];
@@ -1581,8 +1581,8 @@ const journalImageCache = {};
 function journalImage(filename) {
   if (!journalImageCache[filename]) {
     const img = new Image();
-    img.onerror = () => pushError(`Missing image: ${JOURNAL_FOLDER}${filename}.png`);
-    setImageSrc(img, `${JOURNAL_FOLDER}${filename}.png`);
+    img.onerror = () => pushError(`Missing image: ${JOURNAL_FOLDER}${filename}.webp`);
+    setImageSrc(img, `${JOURNAL_FOLDER}${filename}.webp`);
     journalImageCache[filename] = img;
   }
   return journalImageCache[filename];
@@ -1719,8 +1719,8 @@ const bookImageCache = {};
 function bookImage(filename) {
   if (!bookImageCache[filename]) {
     const img = new Image();
-    img.onerror = () => pushError(`Missing image: ${BOOKS_FOLDER}${filename}.png`);
-    setImageSrc(img, `${BOOKS_FOLDER}${filename}.png`);
+    img.onerror = () => pushError(`Missing image: ${BOOKS_FOLDER}${filename}.webp`);
+    setImageSrc(img, `${BOOKS_FOLDER}${filename}.webp`);
     bookImageCache[filename] = img;
   }
   return bookImageCache[filename];
@@ -1953,8 +1953,8 @@ const fridgeImageCache = {};
 function fridgeImage(filename) {
   if (!fridgeImageCache[filename]) {
     const img = new Image();
-    img.onerror = () => pushError(`Missing image: ${FRIDGE_FOLDER}${filename}.png`);
-    setImageSrc(img, `${FRIDGE_FOLDER}${filename}.png`);
+    img.onerror = () => pushError(`Missing image: ${FRIDGE_FOLDER}${filename}.webp`);
+    setImageSrc(img, `${FRIDGE_FOLDER}${filename}.webp`);
     fridgeImageCache[filename] = img;
   }
   return fridgeImageCache[filename];
@@ -2433,8 +2433,8 @@ const bedImageCache = {};
 function bedImage(filename) {
   if (!bedImageCache[filename]) {
     const img = new Image();
-    img.onerror = () => pushError(`Missing image: ${BED_FOLDER}${filename}.png`);
-    setImageSrc(img, `${BED_FOLDER}${filename}.png`);
+    img.onerror = () => pushError(`Missing image: ${BED_FOLDER}${filename}.webp`);
+    setImageSrc(img, `${BED_FOLDER}${filename}.webp`);
     bedImageCache[filename] = img;
   }
   return bedImageCache[filename];
@@ -2628,8 +2628,8 @@ const cameraImageCache = {};
 function cameraImage(filename) {
   if (!cameraImageCache[filename]) {
     const img = new Image();
-    img.onerror = () => pushError(`Missing image: ${CAMERA_FOLDER}${filename}.png`);
-    setImageSrc(img, `${CAMERA_FOLDER}${filename}.png`);
+    img.onerror = () => pushError(`Missing image: ${CAMERA_FOLDER}${filename}.webp`);
+    setImageSrc(img, `${CAMERA_FOLDER}${filename}.webp`);
     cameraImageCache[filename] = img;
   }
   return cameraImageCache[filename];
