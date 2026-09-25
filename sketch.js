@@ -1804,11 +1804,7 @@ const BOOK_COVER_SCALE = 1;
 // sliver of pages/spine rather than front-cover surface.
 const BOOK_COVER_TEXT_RECT = { xMin: 0.1, xMax: 0.78, yMin: 0.08, yMax: 0.92 };
 
-// How close to the canvas edge counts as "outside the scene" — clicking there
-// closes bookspopup, same as clicking outside any other popup's own
-// background art closes it. There's no background art here (covers are
-// scattered directly on the dimmed room), so this invisible margin stands in
-// for that art's edge.
+// Keeps scattered covers this far in from the canvas edge (see initBooks).
 const BOOKS_SCENE_MARGIN_FRACTION = 0.03;
 function booksSceneRect() {
   const mx = canvas.width * BOOKS_SCENE_MARGIN_FRACTION;
@@ -3141,22 +3137,17 @@ canvas.addEventListener("mousedown", () => {
   }
 
   // Clicking a scattered cover opens openbookpopup with that book's review
-  // (see drawOpenBook); a miss checks the invisible scene-edge margin
-  // (booksSceneRect) the same way every other popup's own background art
-  // decides "outside" — closing bookspopup if so, otherwise just staying put
-  // (a miss inside the scene has nothing else to do, unlike the fridge/bed
-  // scenes below).
+  // (see drawOpenBook); clicking anywhere else — the empty space between
+  // covers counts, since there's no background art to click "outside" of —
+  // closes bookspopup, back to the room.
   if (topNode.id === "bookspopup") {
     const hit = bookItems && [...bookItems].reverse().find((b) => hitTestBookItem(b, mouseX, mouseY));
     if (hit) {
       currentOpenBook = hit;
       openPath.push(openBookNode);
-      return;
+    } else {
+      closePopup();
     }
-
-    const rect = booksSceneRect();
-    const insideScene = mouseX >= rect.x && mouseX <= rect.x + rect.w && mouseY >= rect.y && mouseY <= rect.y + rect.h;
-    if (!insideScene) closePopup();
     return;
   }
 
