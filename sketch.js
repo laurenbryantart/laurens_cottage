@@ -22,9 +22,9 @@ const affirmations = [
 // Add journal entries here in writing order (entry 1 first, entry 2 next,
 // ...) — the journal itself shows them in reverse (see resetJournal/
 // handleJournalClick further down, in the "JOURNAL MECHANIC" section), so
-// the last one written is always what comes up first. Keep each one short
-// enough to fit the font size in drawJournal — there's no
-// truncation/scrolling.
+// the last one written is always what comes up first. Any length is fine —
+// an entry too long for one sheet of paper continues onto the next sheet
+// (see journalEntrySheets).
 const JOURNAL_ENTRIES = [
   "July 4.                 We could only see the bottom half of the fireworks. They lit up the fog in neon colors, which was a sight to see in itself. They were shot from the Golden Gate Bridge. I shared a Long Drink with Alex.",
   "July 5.                 Spent a lot of today languishing indoors. I visited the park breifly. I climbed every hill in this city and sat at the park for 20 minutes, sliding off the grassy hill trying to draw.",
@@ -1570,8 +1570,9 @@ function handleWizardGameClick(x, y) {
 // the same trick bank_home/coffeecounter/wizardgame use). Its left page is
 // blank in the art itself — a loose sheet of journal_paper1/2/3.png is drawn
 // on top of it there, cycling 1 -> 2 -> 3 -> 1... on every click, with the
-// current JOURNAL_ENTRIES entry's text drawn on top of that. Entries show
-// highest-numbered (most recently written) first, counting down to entry 1
+// current JOURNAL_ENTRIES entry's text drawn on top of that (a long entry
+// spills onto the next sheet(s), one per click, before moving on). Entries
+// show highest-numbered (most recently written) first, counting down to entry 1
 // and then looping back to the top — independent of the paper art's own
 // 1/2/3 cycle. Closing the popup is handled by the generic click logic in
 // the mousedown handler below, the same as every other app.
@@ -1613,13 +1614,20 @@ const JOURNAL_TEXT_OFFSET_X = {
   journal_paper3: 15,
 };
 
+const JOURNAL_FONT = "28px Handwriting, cursive";
+const JOURNAL_LINE_HEIGHT = 34;
+
 let journalEntryIndex = 0; // counts down from JOURNAL_ENTRIES.length - 1
 let journalPaperIndex = 0; // cycles through JOURNAL_PAPER_FILENAMES
+// An entry too long for one sheet continues onto the next sheet(s) — this
+// is which of the current entry's sheets is showing.
+let journalSheetIndex = 0;
 
 // Called when journal is opened, so it always starts on the most recent entry.
 function resetJournal() {
   journalEntryIndex = JOURNAL_ENTRIES.length - 1;
   journalPaperIndex = 0;
+  journalSheetIndex = 0;
 }
 
 function journalPageRect(node) {
@@ -1655,49 +1663,108 @@ function drawJournal(node) {
     ctx.drawImage(img, x, y, w, h);
   });
 
-  const paperImg = journalImage(JOURNAL_PAPER_FILENAMES[journalPaperIndex]);
-  if (!paperImg.complete || paperImg.naturalWidth === 0) return;
-
-  const fitScale = Math.min(rect.w / paperImg.width, rect.h / paperImg.height);
-  const pw = paperImg.width * fitScale;
-  const ph = paperImg.height * fitScale;
-  const px = rect.x + (rect.w - pw) / 2;
-  const py = rect.y + (rect.h - ph) / 2;
-  ctx.drawImage(paperImg, px, py, pw, ph);
+  const sheet = journalSheetLayout(rect, journalPaperIndex);
+  if (!sheet) return;
+  ctx.drawImage(sheet.img, sheet.px, sheet.py, sheet.pw, sheet.ph);
 
   if (!JOURNAL_ENTRIES.length) return;
+
+  ctx.save();
+  ctx.fillStyle = "black";
+  ctx.font = JOURNAL_FONT;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+
+  const sheets = currentJournalEntrySheets(rect);
+  if (!sheets) {
+    ctx.restore();
+    return;
+  }
+  const lines = sheets[Math.min(journalSheetIndex, sheets.length - 1)];
+
+  // Rotate the whole text block around its own top-left corner, so it
+  // tilts to match the page's perspective instead of the canvas's.
+  ctx.translate(sheet.textX, sheet.textY);
+  ctx.rotate(JOURNAL_TEXT_TILT_DEGREES * Math.PI / 180);
+  lines.forEach((line, i) => ctx.fillText(line, 0, JOURNAL_LINE_HEIGHT / 2 + i * JOURNAL_LINE_HEIGHT));
+  ctx.restore();
+}
+
+// Where one loose sheet (JOURNAL_PAPER_FILENAMES[paperIndex]) sits,
+// "contain"-fitted into the page rect, plus where its text starts, how wide
+// the text can run, and how many lines fit before the bottom margin. null
+// until that paper's image has loaded.
+function journalSheetLayout(rect, paperIndex) {
+  const filename = JOURNAL_PAPER_FILENAMES[paperIndex];
+  const img = journalImage(filename);
+  if (!img.complete || img.naturalWidth === 0) return null;
+
+  const fitScale = Math.min(rect.w / img.width, rect.h / img.height);
+  const pw = img.width * fitScale;
+  const ph = img.height * fitScale;
+  const px = rect.x + (rect.w - pw) / 2;
+  const py = rect.y + (rect.h - ph) / 2;
 
   const marginLeft = pw * 0.12;
   const marginRight = pw * 0.06; // narrower than marginLeft so the text box's right edge sits further out
   const marginTop = ph * 0.1;
-  const offsetX = JOURNAL_TEXT_OFFSET_X[JOURNAL_PAPER_FILENAMES[journalPaperIndex]] || 0;
+  const marginBottom = ph * 0.08;
+  const offsetX = JOURNAL_TEXT_OFFSET_X[filename] || 0;
 
-  ctx.save();
-  ctx.fillStyle = "black";
-  ctx.font = "28px Handwriting, cursive";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-
-  // wrapText measures with ctx.font, so it must be set (above) before this call.
-  const lines = wrapText(JOURNAL_ENTRIES[journalEntryIndex], pw - marginLeft - marginRight - offsetX);
-  const lineHeight = 34;
-
-  // Rotate the whole text block around its own top-left corner, so it
-  // tilts to match the page's perspective instead of the canvas's.
-  ctx.translate(px + marginLeft + offsetX, py + marginTop);
-  ctx.rotate(JOURNAL_TEXT_TILT_DEGREES * Math.PI / 180);
-  lines.forEach((line, i) => ctx.fillText(line, 0, lineHeight / 2 + i * lineHeight));
-  ctx.restore();
+  return {
+    img, pw, ph, px, py,
+    textX: px + marginLeft + offsetX,
+    textY: py + marginTop,
+    textWidth: pw - marginLeft - marginRight - offsetX,
+    maxLines: Math.max(1, Math.floor((ph - marginTop - marginBottom) / JOURNAL_LINE_HEIGHT)),
+  };
 }
 
-// Advances the paper (1 -> 2 -> 3 -> 1...) and descends the entry shown
-// (looping back to the top once it passes entry 1) on every click inside
-// the popup.
+// Splits an entry into sheets of wrapped lines: sheet k is written on paper
+// firstPaperIndex + k (the paper cycles on every click, same as always), so
+// each sheet is wrapped to fit its own paper. Measures with ctx.font, so
+// JOURNAL_FONT must be set first. null until the papers have loaded.
+function journalEntrySheets(rect, entry, firstPaperIndex) {
+  const sheets = [];
+  let remaining = entry;
+  do {
+    const sheet = journalSheetLayout(rect, (firstPaperIndex + sheets.length) % JOURNAL_PAPER_FILENAMES.length);
+    if (!sheet) return null;
+    const lines = wrapText(remaining, sheet.textWidth);
+    sheets.push(lines.slice(0, sheet.maxLines));
+    remaining = lines.slice(sheet.maxLines).join(" ");
+  } while (remaining);
+  return sheets;
+}
+
+// The current entry's sheets. Its first sheet was shown on the paper
+// journalSheetIndex clicks ago, so count back to find which paper that was.
+function currentJournalEntrySheets(rect) {
+  const n = JOURNAL_PAPER_FILENAMES.length;
+  const firstPaperIndex = ((journalPaperIndex - journalSheetIndex) % n + n) % n;
+  ctx.save();
+  ctx.font = JOURNAL_FONT;
+  const sheets = journalEntrySheets(rect, JOURNAL_ENTRIES[journalEntryIndex], firstPaperIndex);
+  ctx.restore();
+  return sheets;
+}
+
+// Advances the paper (1 -> 2 -> 3 -> 1...) on every click inside the popup,
+// either onto the current entry's next sheet or, once that entry's last
+// sheet is showing, down to the next entry (looping back to the top once it
+// passes entry 1).
 const JOURNAL_PAPER_WOBBLE_SOUNDS = ["Paperwobble1", "Paperwobble2", "Paperwobble3"];
 
 function handleJournalClick() {
+  const sheets = currentJournalEntrySheets(journalPageRect(findNodeById(root, "journalpopup")));
+  const sheetCount = sheets ? sheets.length : 1;
   journalPaperIndex = (journalPaperIndex + 1) % JOURNAL_PAPER_FILENAMES.length;
-  journalEntryIndex = journalEntryIndex <= 0 ? JOURNAL_ENTRIES.length - 1 : journalEntryIndex - 1;
+  if (journalSheetIndex < sheetCount - 1) {
+    journalSheetIndex++;
+  } else {
+    journalSheetIndex = 0;
+    journalEntryIndex = journalEntryIndex <= 0 ? JOURNAL_ENTRIES.length - 1 : journalEntryIndex - 1;
+  }
   playSound(JOURNAL_PAPER_WOBBLE_SOUNDS[Math.floor(Math.random() * JOURNAL_PAPER_WOBBLE_SOUNDS.length)]);
 }
 
