@@ -421,27 +421,54 @@ function safeTry(label, fn) {
 }
 
 // -------------------- IMAGE LOADING --------------------
-// One Image per unique `id`, shared across nodes — the three app_file
-// nodes all share id "app_file", so it's only fetched once.
+// Load priority: the main room (room_background + the props sitting in it)
+// is fetched first, on its own, so it isn't fighting ~20MB of popup art for
+// bandwidth. Every other image — popups, minigames, bed/fridge/camera
+// contents — goes through setImageSrc, which holds it in a queue until the
+// main room has finished, then releases the whole queue at once.
 
-function loadImages(node, cache = {}) {
+let mainRoomLoaded = false;
+const deferredImageLoads = [];
+
+function setImageSrc(img, src) {
+  if (mainRoomLoaded) img.src = src;
+  else deferredImageLoads.push(() => { img.src = src; });
+}
+
+function releaseDeferredImages() {
+  mainRoomLoaded = true;
+  deferredImageLoads.splice(0).forEach((load) => load());
+}
+
+// One Image per unique `id`, shared across nodes — the three app_file
+// nodes all share id "app_file", so it's only fetched once. `eager` nodes
+// start downloading right away; the rest are deferred (see above).
+function loadImages(node, cache = {}, eager = () => false) {
   if (!cache[node.id]) {
     const img = new Image();
 
-    img.onload = () => {};
     img.onerror = () => {
       pushError(`Missing image: ${node.path}`);
     };
 
-    img.src = node.path;
+    if (eager(node)) img.src = node.path;
+    else setImageSrc(img, node.path);
     cache[node.id] = img;
   }
 
   node.img = cache[node.id];
-  node.children.forEach((child) => loadImages(child, cache));
+  node.children.forEach((child) => loadImages(child, cache, eager));
 }
 
-loadImages(root);
+const mainRoomNodes = [root, ...root.children];
+loadImages(root, {}, (node) => mainRoomNodes.includes(node));
+
+// Resolves on error too — a missing prop shouldn't hold everything else back.
+Promise.all(mainRoomNodes.map((node) => new Promise((resolve) => {
+  if (node.img.complete) return resolve();
+  node.img.addEventListener("load", resolve, { once: true });
+  node.img.addEventListener("error", resolve, { once: true });
+}))).then(releaseDeferredImages);
 
 // -------------------- SOUND EFFECTS --------------------
 // One Audio per unique file, fetched once and replayed from the start each
@@ -832,7 +859,7 @@ function coffeeImage(filename) {
   if (!coffeeImageCache[filename]) {
     const img = new Image();
     img.onerror = () => pushError(`Missing image: ${COFFEE_FOLDER}${filename}.png`);
-    img.src = `${COFFEE_FOLDER}${filename}.png`;
+    setImageSrc(img, `${COFFEE_FOLDER}${filename}.png`);
     coffeeImageCache[filename] = img;
   }
   return coffeeImageCache[filename];
@@ -1302,7 +1329,7 @@ function wizardImage(filename) {
   if (!wizardImageCache[filename]) {
     const img = new Image();
     img.onerror = () => pushError(`Missing image: ${WIZARD_FOLDER}${filename}.png`);
-    img.src = `${WIZARD_FOLDER}${filename}.png`;
+    setImageSrc(img, `${WIZARD_FOLDER}${filename}.png`);
     wizardImageCache[filename] = img;
   }
   return wizardImageCache[filename];
@@ -1555,7 +1582,7 @@ function journalImage(filename) {
   if (!journalImageCache[filename]) {
     const img = new Image();
     img.onerror = () => pushError(`Missing image: ${JOURNAL_FOLDER}${filename}.png`);
-    img.src = `${JOURNAL_FOLDER}${filename}.png`;
+    setImageSrc(img, `${JOURNAL_FOLDER}${filename}.png`);
     journalImageCache[filename] = img;
   }
   return journalImageCache[filename];
@@ -1693,7 +1720,7 @@ function bookImage(filename) {
   if (!bookImageCache[filename]) {
     const img = new Image();
     img.onerror = () => pushError(`Missing image: ${BOOKS_FOLDER}${filename}.png`);
-    img.src = `${BOOKS_FOLDER}${filename}.png`;
+    setImageSrc(img, `${BOOKS_FOLDER}${filename}.png`);
     bookImageCache[filename] = img;
   }
   return bookImageCache[filename];
@@ -1927,7 +1954,7 @@ function fridgeImage(filename) {
   if (!fridgeImageCache[filename]) {
     const img = new Image();
     img.onerror = () => pushError(`Missing image: ${FRIDGE_FOLDER}${filename}.png`);
-    img.src = `${FRIDGE_FOLDER}${filename}.png`;
+    setImageSrc(img, `${FRIDGE_FOLDER}${filename}.png`);
     fridgeImageCache[filename] = img;
   }
   return fridgeImageCache[filename];
@@ -2407,7 +2434,7 @@ function bedImage(filename) {
   if (!bedImageCache[filename]) {
     const img = new Image();
     img.onerror = () => pushError(`Missing image: ${BED_FOLDER}${filename}.png`);
-    img.src = `${BED_FOLDER}${filename}.png`;
+    setImageSrc(img, `${BED_FOLDER}${filename}.png`);
     bedImageCache[filename] = img;
   }
   return bedImageCache[filename];
@@ -2602,7 +2629,7 @@ function cameraImage(filename) {
   if (!cameraImageCache[filename]) {
     const img = new Image();
     img.onerror = () => pushError(`Missing image: ${CAMERA_FOLDER}${filename}.png`);
-    img.src = `${CAMERA_FOLDER}${filename}.png`;
+    setImageSrc(img, `${CAMERA_FOLDER}${filename}.png`);
     cameraImageCache[filename] = img;
   }
   return cameraImageCache[filename];
