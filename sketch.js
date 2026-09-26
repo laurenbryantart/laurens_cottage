@@ -1065,6 +1065,38 @@ function hitTestMachine(x, y) {
   return x >= mx && x <= mx + w && y >= my && y <= my + h;
 }
 
+// Whether (x, y) lands on a see-through pixel of the coffeecounter art — its
+// top and left are transparent (the room shows through), and clicking there
+// should count as clicking outside the counter. The alpha channel is read
+// once into counterAlphaData. If it can't be read (e.g. the page opened
+// straight from a file://, which blocks getImageData), nothing counts as
+// see-through, same as before this existed.
+let counterAlphaData;
+function onSeeThroughCounterPixel(node, x, y) {
+  const img = node.img;
+  if (counterAlphaData === undefined) {
+    try {
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      const cctx = c.getContext("2d");
+      cctx.drawImage(img, 0, 0);
+      counterAlphaData = cctx.getImageData(0, 0, c.width, c.height).data;
+    } catch (err) {
+      counterAlphaData = null;
+    }
+  }
+  if (!counterAlphaData) return false;
+
+  const w = img.width * node.scale;
+  const h = img.height * node.scale;
+  const { x: left, y: top } = topLeftFor(node.coordinates_by_percentage, w, h);
+  const px = Math.floor((x - left) / node.scale);
+  const py = Math.floor((y - top) / node.scale);
+  if (px < 0 || py < 0 || px >= img.width || py >= img.height) return false;
+  return counterAlphaData[(py * img.width + px) * 4 + 3] === 0;
+}
+
 function pixelsToPercentage(x, y) {
   return [(x / canvas.width) * 100, (y / canvas.height) * 100];
 }
@@ -3207,8 +3239,13 @@ canvas.addEventListener("mousedown", () => {
     const h = topNode.img.height * topNode.scale;
     const { x, y } = topLeftFor(topNode.coordinates_by_percentage, w, h);
     const insideCounter = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h;
+    // The art's transparent top/left is negative space, not counter — unless
+    // there's a mug/topping/the machine poking up into it right there.
+    const onNegativeSpace = insideCounter && onSeeThroughCounterPixel(topNode, mouseX, mouseY) &&
+      !hitTestMachine(mouseX, mouseY) &&
+      !coffeeItems.some((item) => item !== heldItem && hitTestItem(item, mouseX, mouseY));
 
-    if (insideCounter) {
+    if (insideCounter && !onNegativeSpace) {
       // Copies coordinates in addition to (not instead of) the normal
       // pick-up/place/brew handling below — same "always copy" rule as
       // everywhere else, so you can still read off counter positions.
@@ -3217,11 +3254,26 @@ canvas.addEventListener("mousedown", () => {
       return;
     }
 
+    // A held item can still be set down hanging over the counter's top edge
+    // (see overlapsCounterTop), so give that a try before treating the click
+    // as leaving.
+    if (onNegativeSpace && heldItem) {
+      placeHeldItem(mouseX, mouseY);
+      if (!heldItem) return;
+    }
+
     // Clicking outside the counter while carrying something cancels the hold
     // (see cancelHeldItem) instead of leaving it stuck to the cursor with no
     // way out — then falls through to the normal close-the-popup logic below,
     // same as any other miss.
     if (heldItem) cancelHeldItem();
+
+    // The generic logic below would still count negative space as inside the
+    // counter's rect, so close from here.
+    if (onNegativeSpace) {
+      closePopup();
+      return;
+    }
   }
 
   // The bank's PRESS button is checked regardless of what's on top of it
