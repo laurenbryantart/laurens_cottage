@@ -897,11 +897,12 @@ let coffeeItems = [
   { kind: "cinnamon", coordinates_by_percentage: [78, 65], scale: 1 },
 ];
 
-// Toppings (not mugs) snap back to this starting spot once they're
+// Every item's starting spot. Toppings snap back here once they're
 // successfully used on a mug, so the counter resets itself instead of
-// toppings piling up wherever they were last used.
+// toppings piling up wherever they were last used — and anything (mugs
+// too) snaps back here if it's dropped on the machine or cancelled.
 coffeeItems.forEach((item) => {
-  if (item.kind !== "mug") item.home = item.coordinates_by_percentage;
+  item.home = item.coordinates_by_percentage;
 });
 
 // Mugs and toppings can only be set down on the counter's actual top
@@ -1090,7 +1091,8 @@ function cancelHeldItem() {
 // success, milk/creamer/whip/cinnamon teleport back to their own starting
 // spot on the counter rather than staying where they were used. Missing the
 // target still drops them exactly where you clicked (no snapping back) as
-// long as that's actually on the counter top — clicking off the counter
+// long as that's actually on the counter top and not on the machine (that
+// sends it back home) — clicking off the counter
 // (or holding the carafe with no valid mug) just leaves the item stuck to
 // the mouse instead.
 function placeHeldItem(x, y) {
@@ -1139,7 +1141,10 @@ function placeHeldItem(x, y) {
   const h = img.height * item.scale;
   if (!overlapsCounterTop(x, y, w, h)) return; // off the counter top: stays held
 
-  item.coordinates_by_percentage = pixelsToPercentage(x, y);
+  // Dropped on the machine: clicks there always go to the machine first (see
+  // handleCoffeeCounterClick), so the item could never be picked back up —
+  // send it home instead.
+  item.coordinates_by_percentage = hitTestMachine(x, y) ? item.home : pixelsToPercentage(x, y);
   heldItem = null;
 }
 
