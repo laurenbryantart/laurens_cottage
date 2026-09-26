@@ -1829,7 +1829,12 @@ function bookImage(filename) {
   }
   return bookImageCache[filename];
 }
-BOOKS.forEach((book) => bookImage(book.cover));
+// Books still showing any of the placeholder text are left out of the scene
+// entirely — each one appears on its own once its entry in BOOKS is filled in.
+const SHOWN_BOOKS = BOOKS.filter((book) =>
+  book.author !== "Author Name" && book.title !== "Book Title" && book.review !== "Your thoughts here."
+);
+SHOWN_BOOKS.forEach((book) => bookImage(book.cover));
 
 // Book_1..5.png were pre-shrunk (by the same build script every other prop
 // went through) to their actual on-canvas display size, so scale 1, same as
@@ -1861,7 +1866,7 @@ let currentOpenBook = null; // whichever BOOKS entry openbookpopup is currently 
 // there's no need to handle re-scattering after the first open.
 function initBooks() {
   const rect = booksSceneRect();
-  const n = BOOKS.length;
+  const n = SHOWN_BOOKS.length;
   const cols = Math.ceil(Math.sqrt(n));
   const rows = Math.ceil(n / cols);
   const cellW = rect.w / cols;
@@ -1876,7 +1881,7 @@ function initBooks() {
     [cells[i], cells[j]] = [cells[j], cells[i]];
   }
 
-  bookItems = BOOKS.map((book, i) => {
+  bookItems = SHOWN_BOOKS.map((book, i) => {
     const img = bookImage(book.cover);
     const w = img.width * BOOK_COVER_SCALE;
     const h = img.height * BOOK_COVER_SCALE;
